@@ -27,6 +27,7 @@
 #include "strata/prefill/moe_mmq.hpp"
 #include "strata/qwen35/engine.hpp"
 #if defined(STRATA_Q36_CPU_POOL)
+#include "ggml.h"
 #include "strata/kernels/cpu/native_expert.hpp"
 #include "strata/kernels/cpu/pool.hpp"
 #endif
@@ -827,9 +828,25 @@ float f16_to_f32(uint16_t h) {
     return f;
 }
 
-/// A tensor as f32 on the device (F32 as it is, BF16 / F16 widened).
+/// A tensor as f32 on the device; quantized auxiliary weights use GGML's host decoder.
 float* upload_f32(const strata::TensorInfo& t, const uint8_t* src) {
-    std::vector<float> h((size_t) t.elements());
+    size_t count = 1;
+    for (const auto dim : t.shape) {
+        if (!dim || dim > SIZE_MAX / sizeof(float) / count) {
+            std::fprintf(stderr, "strata-q36: invalid or overflowing size for %s\n", t.name.c_str());
+            std::exit(1);
+        }
+        count *= (size_t) dim;
+    }
+#if defined(STRATA_Q36_CPU_POOL)
+    const auto* traits = t.type < GGML_TYPE_COUNT ? ggml_get_type_traits((ggml_type) t.type) : nullptr;
+    if (!traits || traits->blck_size <= 0 || t.shape.empty() ||
+        t.shape[0] % traits->blck_size != 0) {
+        std::fprintf(stderr, "strata-q36: invalid type or row size for %s\n", t.name.c_str());
+        std::exit(1);
+    }
+#endif
+    std::vector<float> h(count);
     if (t.type == 0) std::memcpy(h.data(), src, h.size() * 4);
     else if (t.type == 30)
         for (size_t i = 0; i < h.size(); ++i) h[i] = bf16_to_f32((uint16_t) (src[2 * i] | (src[2 * i + 1] << 8)));
@@ -843,7 +860,13 @@ float* upload_f32(const strata::TensorInfo& t, const uint8_t* src) {
             const float d = f16_to_f32((uint16_t) (q[0] | (q[1] << 8)));
             for (int j = 0; j < 32; ++j) h[b * 32 + j] = d * (float) (int8_t) q[2 + j];
         }
-    } else {
+    }
+#if defined(STRATA_Q36_CPU_POOL)
+    else if (traits->to_float) {
+        traits->to_float(src, h.data(), (int64_t) h.size());
+    }
+#endif
+    else {
         std::fprintf(stderr, "strata-q36: %s is %s, expected F32, BF16, F16 or Q8_0\n", t.name.c_str(), t.type_name());
         std::exit(1);
     }

@@ -341,6 +341,17 @@ int main(int argc, char** argv) {
     cudaStream_t s;
     ck(cudaStreamCreate(&s), "stream");
     std::mt19937 rng(316);
+    if (argc > 1 && std::string(argv[1]) == "--q36") {
+        for (const auto pair : {std::pair<int,int>{22,21}, {22,22}, {21,12}, {21,21}, {12,12}}) {
+            if (!k::native_expert_supported(pair.first, pair.second, 2048, 512)) {
+                std::printf("Q36 %s/%s: missing expert support\n", name_of(pair.first), name_of(pair.second));
+                ++g_fail;
+            } else check(pair.first, pair.second, 2048, 512, s, rng);
+        }
+        std::printf("native_grouped_parity: %d failures\n", g_fail);
+        cudaStreamDestroy(s);
+        return g_fail ? 1 : 0;
+    }
     for (int gu : {16, 17, 18, 21, 22, 23, 29, 42, 12, 13,
 #ifdef STRATA_Q6K_EXPERTS
                    14,

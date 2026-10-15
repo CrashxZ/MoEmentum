@@ -19,6 +19,7 @@
 #include "strata/kernels/cpu/expert_layout.hpp"
 #include "ggml-cpu.h"
 #include "strata/kernels/iq_kernels.hpp"
+#include "strata/prefill/moe_mmq.hpp"
 
 #include "ggml.h"
 
@@ -46,7 +47,9 @@ static double rel(const std::vector<float>& a, const std::vector<float>& b) {
 
 namespace {
 constexpr int NT = 3, E = 7;
-constexpr int64_t H = 2560, FF = 640;
+// Test the actual Qwen3.8-35B-A3B geometry without changing legacy fixtures.
+const bool q36_geometry = std::getenv("STRATA_TEST_Q36") != nullptr;
+const int64_t H = q36_geometry ? 2048 : 2560, FF = q36_geometry ? 512 : 640;
 
 // The three ways and the dequantizers for one expert blob; returns the number of failed checks.
 int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int seed, const std::string& label,
@@ -290,7 +293,8 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
         float* dout;
         unsigned long long* dptr;
         int32_t *dstart, *dn, *ddst, *dtok;
-        cudaMalloc(&dblob, blob.size());
+        cudaMalloc(&dblob, blob.size() + 4096);
+        cudaMemset(dblob, 0, blob.size() + 4096); // MMQ's last-expert zero guard
         cudaMalloc(&dx, x.size() * 4);
         cudaMalloc(&dxq, (size_t) NT * H / 32 * 36);
         cudaMalloc(&dscr, strata::kernels::native_expert_scratch_bytes(NT, FF));
@@ -369,6 +373,40 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
             // exact where there is one product (Q8_0), a rounding at most elsewhere (fused multiply-adds)
             const bool exact = f.gu_type == 8 && f.d_type == 8;
             if (!(dq_err < 1e-6) || h_differ || (exact && (differ || emb_differ))) ++failures;
+        }
+        if (q36_geometry) {
+            namespace mmq = strata::prefill::mmq;
+            if (!mmq::supported(f.gu_type) || !mmq::supported(f.d_type)) {
+                std::printf("Q36 MMQ: missing projection support\n");
+                ++failures;
+            } else {
+                void *mx, *mhq;
+                float *mgu, *mh;
+                cudaMalloc(&mx, mmq::q8_bytes(NT, H));
+                cudaMalloc(&mhq, mmq::q8_bytes(NT, FF));
+                cudaMalloc((void**)&mgu, NT * 2 * FF * sizeof(float));
+                cudaMalloc((void**)&mh, NT * FF * sizeof(float));
+                mmq::Context ctx;
+                mmq::quantize((const float*)dx, nullptr, mx, f.gu_type, H, H, NT, s);
+                mmq::Product p;
+                p.w = dblob; p.type = f.gu_type; p.w_rows = 2 * FF; p.w_cols = H;
+                p.expert_bytes = blob.size(); p.n = 1; p.xq = mx; p.bounds = dstart;
+                p.ids = ddst; p.total_rows = NT; p.max_rows = NT; p.dst = mgu; p.ld_dst = 2 * FF;
+                ctx.run(p, s);
+                mmq::swiglu(mgu, mh, NT, FF, false, s);
+                mmq::quantize(mh, nullptr, mhq, f.d_type, FF, FF, NT, s);
+                p.w = (const uint8_t*)dblob + f.down_off; p.type = f.d_type;
+                p.w_rows = H; p.w_cols = FF; p.xq = mhq; p.dst = dout; p.ld_dst = H;
+                ctx.run(p, s);
+                const auto status = cudaStreamSynchronize(s);
+                std::vector<float> got_m(ref.size());
+                cudaMemcpy(got_m.data(), dout, got_m.size() * sizeof(float), cudaMemcpyDeviceToHost);
+                const double em = rel(got_m, ref);
+                const bool ok_m = status == cudaSuccess && std::isfinite(em) && em < 3e-2;
+                std::printf("          Q36 MMQ full expert vs float reference: rel %.2e %s\n", em, ok_m ? "ok" : "FAIL");
+                if (!ok_m) ++failures;
+                cudaFree(mx); cudaFree(mhq); cudaFree(mgu); cudaFree(mh);
+            }
         }
         cudaFree(dblob); cudaFree(dx); cudaFree(dxq); cudaFree(dscr); cudaFree(dout); cudaFree(dptr);
         cudaFree(dstart); cudaFree(dn); cudaFree(ddst); cudaFree(dtok);
@@ -595,7 +633,12 @@ int main(int argc, char** argv) {
             if (!t[0] || !t[1] || !t[2]) { std::printf("layer %d: no expert tensors\n", l); ++failures; continue; }
             cpu::NativeFmt f;
             std::string err;
-            if (!cpu::native_fmt((int) t[0]->type, (int) t[2]->type, H, FF, f, err)) {
+            if (t[0]->shape.size() != 3 ||
+                t[0]->shape != std::vector<uint64_t>{(uint64_t)H, (uint64_t)FF, t[0]->shape.back()} ||
+                t[1]->shape != t[0]->shape || t[2]->shape != std::vector<uint64_t>{(uint64_t)FF, (uint64_t)H, t[0]->shape.back()} ||
+                t[0]->shape.back() <= E || t[0]->type != t[1]->type ||
+                !strata::kernels::native_expert_supported((int)t[0]->type, (int)t[2]->type, H, FF) ||
+                !cpu::native_fmt((int) t[0]->type, (int) t[2]->type, H, FF, f, err)) {
                 std::printf("layer %d: %s\n", l, err.c_str()); ++failures; continue;
             }
             std::vector<uint8_t> blob(f.bytes);
