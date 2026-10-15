@@ -306,6 +306,20 @@ void scale_down_rows(float* d, int64_t ld, const int32_t* bounds, int n, const f
     ck(cudaGetLastError(), "scale_down_rows");
 }
 
+// Experimental Q4_K-only DS4 semantics. Never alter GGML's shared quantizer:
+// other DS4 formats retain their original-activation minimum-term contract.
+// Each pinned DS4 block is four half2(d,s) followed by 128 signed codes.
+__global__ void q4_k_quantized_sums(unsigned char* q, int64_t subblocks) {
+    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= subblocks) return;
+    unsigned char* b = q + (i / 4) * 144;
+    const int j = i % 4;
+    int sum = 0;
+    for (int k = 0; k < 32; ++k) sum += (int8_t) b[16 + j * 32 + k];
+    half* ds = reinterpret_cast<half*>(b + j * 4);
+    ds[1] = __float2half_rn(__half2float(ds[0]) * sum);
+}
+
 void quantize(const float* x, const int32_t* ids, void* xq, int t, int64_t cols, int64_t ld, int64_t rows, void* stream,
               float* yscale) {
     if (rows <= 0) return;
@@ -322,6 +336,16 @@ void quantize(const float* x, const int32_t* ids, void* xq, int t, int64_t cols,
     quantize_mmq_q8_1_cuda(x, ids, xq, (ggml_type) t, cols, ld, rows * ld, rows * ld, pad512(cols), rows, 1, 1,
                            (cudaStream_t) stream);
     ck(cudaGetLastError(), "quantize");
+    static const bool qsum = [] {
+        const char* v = std::getenv("STRATA_MMQ_Q4_K_QSUM");
+        return v != nullptr && std::strcmp(v, "1") == 0;
+    }();
+    if (qsum && t == GGML_TYPE_Q4_K) {
+        const int64_t n = (pad512(cols) / 32) * rows;
+        q4_k_quantized_sums<<<(unsigned) ((n + 127) / 128), 128, 0, (cudaStream_t) stream>>>(
+            static_cast<unsigned char*>(xq), n);
+        ck(cudaGetLastError(), "Q4_K quantized sums");
+    }
 }
 
 Context::Context() {
