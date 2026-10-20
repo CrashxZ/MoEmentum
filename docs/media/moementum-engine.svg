@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" role="img" aria-labelledby="title desc">
+<title id="title">How MoEmentum handles expert work</title>
+<desc id="desc">Browser or API to serving layer to engine. GPU expert work and CPU expert work are combined. Eligible CPU down rows use the optimized multi-token kernel; other cases retain existing dispatch. Then the model continues and replies through the serving layer. Simplified data flow, not a full model graph.</desc>
+<rect width="1000" height="800" rx="20" fill="#15283b"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#adbdce"/></marker></defs>
+<text x="38" y="48" font-family="Verdana,DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#f3f8fc">Where MoEmentum adds momentum</text>
+<text x="38" y="80" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#adbdce">Simplified expert-work flow / optimized CPU down rows highlighted</text>
+<path d="M300 154 H355" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M630 154 H685" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M820 195 V220 H185 V250" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M820 195 V220 H660 V250" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M660 330 V365" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M660 445 V466 H525 V500" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M660 445 V466 H825 V500" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M185 330 V642 H445 V675" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M525 610 V675" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M825 610 V642 H605 V675" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M675 712 H715" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="40" y="112" width="260" height="83" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="58" y="143" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">Browser or API</text>
+<text x="58" y="171" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Your prompt</text>
+<rect x="355" y="112" width="275" height="83" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="373" y="143" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">Serving layer</text>
+<text x="373" y="171" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Strata-derived server</text>
+<rect x="685" y="112" width="275" height="83" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="703" y="143" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">MoEmentum engine</text>
+<text x="703" y="171" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">strata-q36</text>
+<rect x="40" y="250" width="290" height="80" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="58" y="281" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">GPU expert work</text>
+<text x="58" y="309" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Resident expert weights</text>
+<rect x="390" y="250" width="540" height="80" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="408" y="281" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">CPU expert work</text>
+<text x="408" y="309" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Expert weights in system RAM</text>
+<rect x="450" y="365" width="420" height="80" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="468" y="396" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">Eligible CPU down-row group?</text>
+<text x="468" y="424" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">AVX2 / matching IQ layout / 2–8 tokens</text>
+<text x="532" y="490" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="700" fill="#82d4df">YES</text>
+<text x="835" y="490" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="700" fill="#adbdce">NO</text>
+<rect x="380" y="500" width="290" height="110" rx="12" fill="#204451" stroke="#5bc5d5" stroke-width="2"/>
+<text x="398" y="531" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#82d4df">Multi-token fast path</text>
+<text x="398" y="559" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Reuse decoded weights</text>
+<text x="398" y="583" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Reference-order reduction</text>
+<rect x="710" y="500" width="250" height="110" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="728" y="531" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">Existing dispatch</text>
+<text x="728" y="559" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Single-token and</text>
+<text x="728" y="583" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">unsupported cases</text>
+<rect x="375" y="675" width="300" height="75" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="393" y="706" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">Combine expert results</text>
+<text x="393" y="734" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Continue the model</text>
+<rect x="715" y="675" width="245" height="75" rx="12" fill="#20364b" stroke="#4b647c" stroke-width="2"/>
+<text x="733" y="706" font-family="Verdana,DejaVu Sans,sans-serif" font-size="19" font-weight="700" fill="#f3f8fc">Reply via server</text>
+<text x="733" y="734" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#d9e6f2">Back to your client</text>
+<text x="40" y="778" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">Exact guards and fallback behavior are documented below. This is not the full model computation graph.</text>
+</svg>

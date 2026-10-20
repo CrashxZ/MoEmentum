@@ -70,7 +70,53 @@ def render():
     a += [text(828, 552, 'prefill TPS', 14, '#adbdce'),
           text(42, 587, 'Input tokens / median prefill seconds. Decode essentially unchanged; finite parity coverage.', 13, '#adbdce'), '</svg>']
     (MEDIA / 'moementum-prefill.svg').write_text('\n'.join(a)+'\n')
-    print('Rendered docs/media/moementum-{hero,prefill}.svg')
+    render_flow()
+    print('Rendered docs/media/moementum-{hero,prefill,engine}.svg')
+
+
+def render_flow():
+    """Fixed layout: no Mermaid auto-layout, return loop or foreignObject."""
+    a = frame(800, 'How MoEmentum handles expert work',
+              'Browser or API to serving layer to engine. GPU expert work and CPU expert work are combined. Eligible CPU down rows use the optimized multi-token kernel; other cases retain existing dispatch. Then the model continues and replies through the serving layer. Simplified data flow, not a full model graph.')
+    a += ['<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#adbdce"/></marker></defs>',
+          text(38, 48, 'Where MoEmentum adds momentum', 28, '#f3f8fc', 700),
+          text(38, 80, 'Simplified expert-work flow / optimized CPU down rows highlighted', 16, '#adbdce')]
+
+    def line(path):
+        a.append(f'<path d="{path}" fill="none" stroke="#adbdce" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>')
+
+    def box(x, y, w, h, title, lines=(), accent=False):
+        a.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="12" fill="{"#204451" if accent else "#20364b"}" stroke="{"#5bc5d5" if accent else "#4b647c"}" stroke-width="2"/>')
+        a.append(text(x+18, y+31, title, 19, '#82d4df' if accent else '#f3f8fc', 700))
+        for i, label in enumerate(lines):
+            a.append(text(x+18, y+59+i*24, label, 16, '#d9e6f2'))
+
+    # Draw connectors first, leaving every label clear of the paths.
+    line('M300 154 H355')
+    line('M630 154 H685')
+    line('M820 195 V220 H185 V250')
+    line('M820 195 V220 H660 V250')
+    line('M660 330 V365')
+    line('M660 445 V466 H525 V500')
+    line('M660 445 V466 H825 V500')
+    line('M185 330 V642 H445 V675')
+    line('M525 610 V675')
+    line('M825 610 V642 H605 V675')
+    line('M675 712 H715')
+    box(40, 112, 260, 83, 'Browser or API', ['Your prompt'])
+    box(355, 112, 275, 83, 'Serving layer', ['Strata-derived server'])
+    box(685, 112, 275, 83, 'MoEmentum engine', ['strata-q36'])
+    box(40, 250, 290, 80, 'GPU expert work', ['Resident expert weights'])
+    box(390, 250, 540, 80, 'CPU expert work', ['Expert weights in system RAM'])
+    box(450, 365, 420, 80, 'Eligible CPU down-row group?', ['AVX2 / matching IQ layout / 2–8 tokens'])
+    a += [text(532, 490, 'YES', 14, '#82d4df', 700),
+          text(835, 490, 'NO', 14, '#adbdce', 700)]
+    box(380, 500, 290, 110, 'Multi-token fast path', ['Reuse decoded weights', 'Reference-order reduction'], True)
+    box(710, 500, 250, 110, 'Existing dispatch', ['Single-token and', 'unsupported cases'])
+    box(375, 675, 300, 75, 'Combine expert results', ['Continue the model'])
+    box(715, 675, 245, 75, 'Reply via server', ['Back to your client'])
+    a += [text(40, 778, 'Exact guards and fallback behavior are documented below. This is not the full model computation graph.', 13, '#adbdce'), '</svg>']
+    (MEDIA / 'moementum-engine.svg').write_text('\n'.join(a)+'\n')
 
 
 if __name__ == '__main__':

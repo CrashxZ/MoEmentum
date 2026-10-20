@@ -87,22 +87,7 @@ TPS is calculated as input tokens divided by median engine prefill seconds, usin
 
 Strata provides the inference engine, CPU/GPU expert execution and serving layer. MoEmentum changes one narrow piece: **how matching CPU expert down-projections process groups of tokens during prefill**.
 
-```mermaid
-flowchart TD
-    Client[Browser chat or API client] --> Server[Strata-derived serving layer]
-    Server --> Engine[MoEmentum / strata-q36]
-    Engine --> GPU[GPU-resident expert work]
-    Engine --> CPU[CPU expert work from system RAM]
-    CPU --> Guard{Eligible AVX2 CPU, matching IQ layout, 2–8 tokens?}
-    Guard -->|Yes| Fast[Multi-token down rows
-Reuse decoded expert weights
-Reference-order reduction]
-    Guard -->|No| Fallback[Existing fallback path]
-    GPU --> Result[Combine expert results]
-    Fast --> Result
-    Fallback --> Result
-    Result --> Server
-```
+<p align="center"><img src="docs/media/moementum-engine.svg" width="900" alt="MoEmentum expert-work flow: client to server to engine; GPU and CPU work split. Eligible CPU down rows use the highlighted multi-token fast path, otherwise existing dispatch is retained. Expert results are combined and the reply returns through the server."></p>
 
 Think of an expert's weights as a reference book. When several prompt tokens need the same expert, the multi-token kernel can decode its weights once for the group rather than repeating that work separately. Reference-order reduction preserves GGML-reference output bits on the inputs we exercised.
 
