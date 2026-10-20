@@ -6,7 +6,7 @@ An experimental **Strata fork** exploring faster mixture-of-experts (MoE) prefil
 
 Built on [Strata by Niko1221](https://github.com/Niko1221/Strata), with its history and [MIT license](LICENSE) preserved. The original README is available as [README.upstream.md](README.upstream.md). The Strata website describes the parent project's consumer-GPU MoE inference goals; its hardware tables and headline speeds are **not MoEmentum measurements**.[1]
 
-> **Status: experimental source build.** The prepared branch is `moementum/iq-down-prefill`. The proposed remote is `CrashxZ/MoEmentum`; until that fork and branch are published, the clone URL below is a publication target, not an available release. No MoEmentum binary release or one-click installer has been qualified.
+> **Status: experimental source build.** The optimization lives on branch [`moementum/iq-down-prefill`](https://github.com/CrashxZ/MoEmentum/tree/moementum/iq-down-prefill), not the fork's upstream-tracking `main` branch. Clone that branch using the instructions below. No MoEmentum binary release or one-click installer has been qualified.
 
 ## What changes?
 
@@ -67,7 +67,7 @@ nvcc --version
 
 ### 2. Get MoEmentum and Python dependencies
 
-Once the fork/branch is published:
+Clone the published optimization branch:
 
 ```bash
 git clone --branch moementum/iq-down-prefill https://github.com/CrashxZ/MoEmentum.git
