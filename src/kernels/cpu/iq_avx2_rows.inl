@@ -165,13 +165,49 @@ void gu_rows(const uint8_t* blob, size_t gu_row, size_t up_off, int n, const voi
     }
 }
 
+// GGML reference-order reduction for IQ3_S/IQ2_S down projections only.
+// Keep GU and every other format on their original row_dot_any path.
+template <int TY, int NT> STRATA_ROWS_FN
+inline void row_dot_down_reference(const uint8_t* row, int nblocks, const block_q8_K* const* y, float* res) {
+    const int pf = prefetch_distance();
+    __m256 accf[NT];
+    for (int t = 0; t < NT; ++t) accf[t] = _mm256_setzero_ps();
+    for (int i = 0; i < nblocks; ++i) {
+        const uint8_t* blk = row + (size_t) i * Fmt32<TY>::bytes;
+        rows_ahead(blk, pf);
+        __m256i acci[NT];
+        for (int t = 0; t < NT; ++t) acci[t] = _mm256_setzero_si256();
+        for (int j = 0; j < 4; ++j) for (int half = 0; half < 2; ++half) {
+            __m256i g, sgn, sc;
+            Fmt32<TY>::decode(blk, j, half, g, sgn, sc);
+            for (int t = 0; t < NT; ++t) {
+                const __m256i yv = _mm256_loadu_si256((const __m256i*) (y[t][i].qs + 64*j + 32*half));
+                acci[t] = madd_add(acci[t], _mm256_maddubs_epi16(g, _mm256_sign_epi8(yv, sgn)), sc);
+            }
+        }
+        const float dx = h2f(u16(blk));
+        for (int t = 0; t < NT; ++t)
+            accf[t] = _mm256_fmadd_ps(_mm256_set1_ps(dx*y[t][i].d), _mm256_cvtepi32_ps(acci[t]), accf[t]);
+    }
+    for (int t = 0; t < NT; ++t) {
+        __m128 sum = _mm256_extractf128_ps(accf[t], 1);
+        sum = _mm_add_ps(sum, _mm256_castps256_ps128(accf[t]));
+        sum = _mm_add_ps(sum, _mm_movehl_ps(sum, sum));
+        sum = _mm_add_ss(sum, _mm_movehdup_ps(sum));
+        res[t] = _mm_cvtss_f32(sum) * Fmt32<TY>::K;
+    }
+}
+
 template <int TY, int NT> STRATA_ROWS_FN
 void dot_rows(const uint8_t* w, size_t row_bytes, int n, const void* const* act, float* const* out, int r0, int r1) {
     const block_q8_K* y[NT];
     for (int t = 0; t < NT; ++t) y[t] = (const block_q8_K*) act[t];
     float res[NT];
     for (int r = r0; r < r1; ++r) {
-        row_dot_any<TY, NT>(w + (size_t) r * row_bytes, n / QK_K, y, res);
+        if constexpr (TY == 21 || TY == 121 || TY == 22 || TY == 122)
+            row_dot_down_reference<TY, NT>(w + (size_t) r * row_bytes, n / QK_K, y, res);
+        else
+            row_dot_any<TY, NT>(w + (size_t) r * row_bytes, n / QK_K, y, res);
         for (int t = 0; t < NT; ++t) out[t][r] = res[t];
     }
 }

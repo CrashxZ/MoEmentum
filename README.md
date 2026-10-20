@@ -1,243 +1,188 @@
-<h1 align="center">Strata</h1>
+# MoEmentum
 
-**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português](README.pt-BR.md)
+**Give your experts some momentum.**
 
-<p align="center"><b>Run a 125-billion-parameter AI model on your own gaming PC</b><br>
-NVIDIA or AMD graphics card (12 GB or more) · Windows or Linux · free and open source</p>
+An experimental **Strata fork** exploring faster mixture-of-experts (MoE) prefill on consumer hardware. MoEmentum improves a narrowly guarded CPU expert down-projection path; it is **not a new model, a llama.cpp replacement written from scratch, or an official Strata release**.
 
-<p align="center"><a href="https://github.com/Niko1221/Strata/releases/download/v0.1.10/Pagoda.mp4"><img src="docs/media/pagoda-preview.webp" width="720" alt="A voxel pagoda garden that Strata's model wrote, running in the browser"></a><br>
-<sub>A voxel pagoda garden, 1 shot prompt running on an RTX 5070 with Strata (IQ3_S, 128K context) ·
-<a href="https://github.com/Niko1221/Strata/releases/download/v0.1.10/Pagoda.mp4">full video (49 s)</a></sub></p>
+Built on [Strata by Niko1221](https://github.com/Niko1221/Strata), with its history and [MIT license](LICENSE) preserved. The original README is available as [README.upstream.md](README.upstream.md). The Strata website describes the parent project's consumer-GPU MoE inference goals; its hardware tables and headline speeds are **not MoEmentum measurements**.[1]
 
-Strata runs **[Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next)** on a normal PC. This is a
-large, smart AI model that usually needs a server. It chats, writes code, reads pictures and works with your apps
-and coding agents. Nothing leaves your PC.
+> **Status: experimental source build.** The prepared branch is `moementum/iq-down-prefill`. The proposed remote is `CrashxZ/MoEmentum`; until that fork and branch are published, the clone URL below is a publication target, not an available release. No MoEmentum binary release or one-click installer has been qualified.
 
-## How fast is it?
+## What changes?
 
-We measured it on two ordinary gaming PCs. A token is about ¾ of a word.
+For matching Qwen expert layouts, CPU prefill can process several tokens sharing an expert while decoding its quantized weights once. MoEmentum:
 
-- **Writes answers:** how fast the reply appears in a short chat. 60 tokens per second is faster than you can read.
-- **Reads your prompt:** how fast it takes in what you send (here a 32K-token document, code or chat history).
+- Enables the existing AVX2 multi-token down-row kernel for the narrowly checked IQ2_S/IQ3_S expert geometry (`n_embd=2048`, `n_ff=512`, `nt=2..8`).
+- Uses reference-order floating-point reduction for those IQ down-row formats, preserving GGML-reference output bits on the exercised inputs.
+- Keeps single-token native dispatch and unsupported layouts on their existing fallback paths; the new dispatch excludes AVX-512 CPUs.
+- Leaves gate/up arithmetic, model weights, routing algorithms and API implementation unchanged by this optimization.
 
-<table>
-<tr><th>NVIDIA: RTX 5070 (12 GB), Ryzen 5 7600, 64 GB RAM</th><th>AMD: RX 9070 XT (16 GB), Ryzen 9 3900X, 47 GB RAM</th></tr>
-<tr><td>
+Only `src/kernels/cpu/native_expert.cpp` and `src/kernels/cpu/iq_avx2_rows.inl` change for the optimization. **Both `native_expert.cpp` and `iq_avx2.cpp` must be recompiled**, because the latter includes the changed inline header. Replacing one object alone is insufficient. Binary names and existing `STRATA_*` configuration names remain unchanged for compatibility.
 
-| Size | Writes answers | Reads your prompt |
-| --- | ---: | ---: |
-| **Q2_0** | 94 tokens/s | 2,650 tokens/s |
-| **IQ2_XS** | 79 tokens/s | 2,090 tokens/s |
-| **IQ3_XXS** | 62 tokens/s | 1,750 tokens/s |
-| **IQ3_S** | 53 tokens/s | 1,620 tokens/s |
-| **Coder** | 55 tokens/s | 2,180 tokens/s |
+This branch also inherits two earlier local Strata compatibility/diagnostic commits: mixed Qwen expert quantization support and a default-off Q4 quantized-sum experiment. The measured runs kept that Q4 experiment disabled; this is not a claim that those separate experiments improve performance.
 
-</td><td>
+## What have we measured?
 
-| Size | Writes answers | Reads your prompt |
-| --- | ---: | ---: |
-| **Q2_0** | 60 tokens/s | 1,160 tokens/s |
-| **IQ2_XS** | 52 tokens/s | 1,110 tokens/s |
-| **Coder** | 44 tokens/s | 1,420 tokens/s |
+One Linux guest: **RTX 3050 6GB, 32GiB RAM, six vCPUs**, five CPU expert threads; Qwen3.8-35B-A3B-Distill IQ2_M. Same checkpoint and placement for baseline A and candidate C; context4096, prompt chunk128, expert budget3GiB, hybrid rows128, MTP disabled. These are a **tested configuration**, not universal minimum requirements.
 
-</td></tr>
-</table>
+Four-task trial, three fresh processes per arm, fixed order `A,C,C,A,A,C`:
 
-NVIDIA: Q2_0 with engine 0.1.36, the other rows with 0.1.26 (4K answers, 32K prompts). The full tables are in
-[DETAILS.md](docs/DETAILS.md#speed-measured). A card with more VRAM is faster: an RTX 3090 (24 GB) should write
-about 100-140 tokens per second. Long chats and other cards: [speed of each model](docs/MODELS.md#how-fast-is-each-size),
-[community results](docs/COMMUNITY_BENCHMARKS.md).
+| Input tokens | Baseline median prefill | MoEmentum median prefill | Less prefill time |
+|---:|---:|---:|---:|
+| 100 | 1.458s | 1.103s | 24.35% |
+| 190 | 2.540s | 1.856s | 26.94% |
+| 1,767 | 25.790s | 17.851s | 30.78% |
+| 2,514 | 37.064s | 25.831s | 30.31% |
 
-<p align="center"><a href="https://buymeacoffee.com/strataengine"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a><br>
-<sub>Strata is free. If it runs well on your PC, a coffee keeps the work on it going.</sub></p>
+- **24 requests; 918 emitted token occurrences, including EOS: complete A/C output parity.** Three repeats do not constitute three new tasks.
+- Median whole-process lifetime fell about24.91%; decode was essentially unchanged.
+- **Absolute task correctness was only1/4 unique tasks for both engines.** The optimization preserves the baseline's mistakes; it does not make the model smarter.
+- An earlier separate two-prompt trial also matched outputs, with observed prefill reductions of28–34%.
+- These are bounded observations, not statistical significance, universal bit identity, a general throughput guarantee or a speed comparison with stock llama.cpp. Independent llama.cpp task-error attribution remains untested.
 
-## What you need
+See [the sanitized benchmark record](docs/MOEMENTUM_BENCHMARK.md) for all samples, pins and limitations. Private captures, generated binaries, machine credentials and checkpoints are not included.
 
-| | |
-| --- | --- |
-| **Graphics card** | **NVIDIA** GeForce RTX 20, 30, 40 or 50 series, or **AMD** Radeon RX 7900 XT / XTX, RX 7800 XT / 7700 XT, RX 9060 XT, RX 9070 / 9070 XT, Radeon AI PRO R9700 or RX 6800 / 6900 series. It needs **12 GB of VRAM or more**. |
-| **RAM** | 32 GB or more. Your RAM decides [which model](#which-model-should-i-pick) fits. 64 GB runs every size. |
-| **Disk** | About 80 GB free. Use an SSD if you can: the first start is much faster. |
-| **System** | Windows 10 / 11 or Linux, and a current graphics driver from NVIDIA or AMD. |
+## Install from source: Linux + NVIDIA
 
-The installer sets up everything else. Two or three cards can share the model ([multi-GPU](docs/MULTI_GPU.md)).
+### 1. Prerequisites
 
-Experimental, written and tested by community members on their own machines:
+- Linux x86-64; **AVX2, FMA and F16C** for the optimized CPU kernel. Other CPUs can use upstream paths, but this optimization is not qualified there.
+- An NVIDIA driver and a **CUDA development toolkit containing `nvcc`**, not only the CUDA runtime shipped in Python wheels. Use the CUDA/toolchain compatibility guidance in [upstream installation docs](docs/INSTALL.md).
+- Git, C/C++ compilers supporting C++20, Python3.10+, venv/pip, CMake3.24+ and Ninja.
+- Sufficient RAM, GPU memory and disk for your chosen checkpoint and build. Our tested GGUF is about12.56GB; leave additional space for dependencies, build artifacts and runtime allocations. Other models need different resources.
 
-- **Older graphics cards** (Tesla P40 / V100, GTX 10, Radeon VII / MI50, RX 6700 XT, RX 5500 XT): [Older GPUs](docs/OLDER_GPUS.md).
-- **Intel Arc**, built from source on Linux: [Intel Arc](docs/INTEL_ARC.md).
-- **Apple Silicon Macs (M1 to M5)**, built from source by `./setup.sh` (the Metal engine): [Mac](docs/MAC.md).
-- **AMD Ryzen AI Max (Strix Halo)**, built from source on Linux: [Strix Halo](docs/STRIX_HALO.md).
-- **Older processors without AVX2**: they work, but slowly. [Older CPUs](docs/INSTALL.md#older-cpus-experimental).
+On Debian/Ubuntu, the basic CPU build prerequisites are:
 
-The full list: [docs/INSTALL.md](docs/INSTALL.md#what-you-need).
-
-## Install
-
-### Let your AI set it up
-
-Do you use an AI coding assistant (Claude Code, Cursor, Codex, GitHub Copilot, ...)? Paste this into it:
-
-```text
-Set up Strata on this PC for me: https://github.com/Niko1221/Strata - follow docs/AI_SETUP.md in that repository.
+```bash
+sudo apt-get update
+sudo apt-get install git build-essential python3 python3-venv python3-pip
 ```
 
-It checks your graphics card, RAM and disk and picks the model that fits. Then it installs and starts it and tells
-you how to connect your apps. AI tools can also install, start and stop Strata through its
-[MCP server](docs/MCP_SERVER.md).
+Install the appropriate NVIDIA driver/CUDA toolkit separately. Check them before building:
 
-### Or do it yourself
+```bash
+nvidia-smi
+nvcc --version
+```
 
-[Download Strata](https://github.com/Niko1221/Strata/archive/refs/heads/main.zip) and unzip it (or `git clone` it).
-**Windows:** double-click **`START-HERE.bat`**. **Linux:** run **`./setup.sh`** in the Strata folder.
+### 2. Get MoEmentum and Python dependencies
 
-**Mac (Apple Silicon, M1 to M5, macOS 15 or newer):** install Apple's Command Line Tools once
-(`xcode-select --install` in Terminal; Xcode itself is not needed). Then open Terminal in the Strata folder and run
-**`./setup.sh`**. It builds the Mac engine on your Mac (about 7 minutes), asks the same questions, downloads the model
-and starts it. Next time, `./setup.sh` starts it right away. Which size fits your Mac and how fast it is:
-[docs/MAC.md](docs/MAC.md).
+Once the fork/branch is published:
 
-The steps are the same for NVIDIA and AMD. The installer finds your card and sets up the right engine for it. It
-asks you a few questions:
+```bash
+git clone --branch moementum/iq-down-prefill https://github.com/CrashxZ/MoEmentum.git
+cd MoEmentum
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+```
 
-- which model and which size,
-- how much context (how much text the model keeps in mind),
-- whether it should read pictures.
+The upstream [requirements file](requirements.txt) pins the Python tools. There is no separate package named `moementum` to install with pip.
 
-Press Enter each time for the recommended answer. Then it downloads the model (about 70 GB) and starts it. If the
-download stops, run it again: it continues where it left off. Your browser opens the Strata app at
-`http://127.0.0.1:8080`.
+### 3. Compile the actual fork
 
-> **While the model starts, your PC can be slow or stop responding for 1-3 minutes** (longest the first time).
-> Strata loads 35-55 GB into your RAM and locks part of it for the graphics card. This is normal. Wait, and don't
-> close the window. The window shows what Strata is doing.
+Example for the tested Ampere RTX3050 (`CUDA architecture86`):
 
-**Next time**, run `START-HERE.bat` (or `./setup.sh`) again. It starts right away and downloads nothing twice. Close
-its window to stop the model. `UPDATE.bat` (`./update.sh`) updates Strata without starting it. Updating, Docker,
-several cards, where the files go and every option: [docs/INSTALL.md](docs/INSTALL.md).
+```bash
+cmake -S . -B build-moementum -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSTRATA_ENABLE_CUDA=ON \
+  -DSTRATA_NATIVE_EXPERTS=ON \
+  -DSTRATA_MMQ_KQUANTS=ON \
+  -DSTRATA_BUILD_TESTS=OFF \
+  -DCMAKE_CUDA_ARCHITECTURES=86 \
+  -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared
+cmake --build build-moementum --target strata-q36 -j 2
+```
 
-**Is it fast on your PC?** Run `BENCH.bat` (`./bench.sh`): about 5-10 minutes, it measures chat, 4K/16K prompts and an agent-style session with your own settings and writes a report to share ([how](docs/COMMUNITY_BENCHMARKS.md#run-the-benchmark)).
+Use the architecture appropriate to your GPU, not86 universally. The target and native-expert dependency linkage are defined in [CMakeLists.txt](CMakeLists.txt); GGML is fetched at the revision pinned there. Limit parallel jobs on RAM-constrained machines.
 
-## Which model should I pick?
+**Do not assume `./setup.sh` or `START-HERE.bat` installed MoEmentum.** The inherited installer normally downloads an upstream Strata binary. Building this checkout and explicitly selecting its `build-moementum/strata-q36` executable avoids that silent substitution. The inherited setup's `qwen36` family is marked download-only in this snapshot, so it is not the installation route for this tested smaller-model configuration.
 
-The installer recommends one for your RAM. The same model comes in several sizes, compressed more or less. Smaller
-sizes are faster. Larger sizes are a bit smarter.
+The measured C binary was built and fully linked from these kernel source bytes in a controlled private build. The generic clean-checkout installation above is derived from the actual CMake targets; it has **not been rerun end-to-end as a fresh installer qualification**. Windows/AMD/Mac builds are inherited upstream capabilities, not newly validated MoEmentum platforms.
 
-| Your RAM | Take | Why |
-| --- | --- | --- |
-| **32 GB** | **Coder** | it fits 32 GB, and it is made for code (with a 24 GB card, Q2_0 and IQ2_XS run too) |
-| **48 GB** | **IQ2_XS** (or Q2_0, the fastest) | the larger sizes do not fit |
-| **64 GB** | **IQ2_XS** (recommended), or IQ3_XXS / IQ3_S | every size fits; IQ3_S is the best and the slowest |
-| **96 GB or more** | **IQ3_S**, or Unsloth's UD-IQ4_XS (~4-bit) | room for the largest sizes with everything else open |
+### 4. Supply a compatible model
 
-- **[Coder](docs/MODELS.md#coder):** a coding version with half of the experts removed. It reaches 91% of the full
-  model's SWE-bench Verified score (measured by its authors) and fits 32 GB of RAM. It is weaker outside code,
-  including Chinese and other CJK text (#438). For those, take Q2_0, IQ2_XS or IQ3_S, which keep every expert.
-- **[Swift 1.5](docs/MODELS.md#swift-15):** a fine-tune that thinks for a much shorter time before it answers. You
-  get the answer sooner, at about the same quality.
-- **[Unsloth UD-IQ4_XS](docs/MODELS.md#unsloth-ud-iq4_xs):** Unsloth's ~4-bit version, between IQ3_S and
-  UD-Q4_K_XL in quality. A 94 GB download. With less than ~80 GB of RAM, Strata reads part of it from the SSD
-  while it answers, so it is slower there (an NVMe SSD helps).
-- **[Unsloth UD-Q4_K_XL, UD-Q5_K_XL, UD-Q6_K_XL and Q8_0](docs/MODELS.md#unsloths-files-ud-iq4_xs-to-q8_0):**
-  4- to 8-bit, closer to the full model (93-95% the same next token as Q8_0). Fast where every expert fits in RAM
-  (~88 GB for UD-Q4_K_XL up to ~136 GB for Q8_0); with less RAM Strata reads part of them from the SSD while it
-  answers, which is much slower (7-8.5 tokens/s for UD-Q4_K_XL on a 64 GB PC).
-- **[OrcaRouter's Uncensored IQ3_XXS](docs/MODELS.md#orcarouter-uncensored-iq3_xxs):** you set it up by hand. It is
-  not in the installer's menu.
+Obtain your model from a trusted distributor and obey its license. MoEmentum does not redistribute weights. Our tested checkpoint is the **IQ2_M quantization of Empero's Qwen3.8-35B-A3B-Distill**, not the larger model advertised in the upstream homepage examples. Its checksum is in the benchmark record.
 
-Sizes, downloads and what fits where: [docs/MODELS.md](docs/MODELS.md). To add another model later, run
-`SETUP.bat` (Linux: `./setup.sh --setup`).
+Set the local absolute path, without duplicating a model you already have:
 
-## Using it
+```bash
+export MODEL=/absolute/path/to/Qwen3.8-35B-A3B-IQ2_M.gguf
+sha256sum "$MODEL"
+```
 
-<p align="center"><img src="docs/media/runpagoda.png" width="900" alt="The Strata app's Monitor tab next to a coding agent"><br>
-<sub>The Strata app's <b>Monitor</b> (left) while a coding agent writes the pagoda garden from the video (right)</sub></p>
+The fast-path guards validate the expert layout. A similarly named GGUF with different tensor geometry may use fallback paths and must not be advertised as having the measured speedup.
 
-- **In the browser:** open `http://127.0.0.1:8080`. It has **Chat**, a live **Monitor** of the model and your
-  GPU/CPU/RAM, and **About** with the settings and addresses.
-- **Your apps and coding agents:** add an "OpenAI-compatible" provider with the base URL
-  **`http://127.0.0.1:8080/v1`**. Any API key and any model name work.
-  - Apps that use Anthropic's API: `http://127.0.0.1:8080/v1/messages` (Claude Code:
-    `ANTHROPIC_BASE_URL=http://127.0.0.1:8080`).
-  - Codex CLI and other apps that use the OpenAI Responses API: `/v1/responses`
-    ([setup](docs/DETAILS.md#the-responses-api-and-codex-cli)).
-- **Thinking:** choose **off, low, medium or high** in the chat menu or in your app's "reasoning effort". Off is the
-  fastest. High is best for hard questions.
-- **Pictures:** say yes to "Images?" in setup. Then click **Picture** in the chat, or attach pictures in your app.
-  AMD cards read pictures on Linux through the processor; on Windows they can't yet.
-- **From your phone or another PC:** `START-HERE.bat --setup --host 0.0.0.0 --api-key <secret>`. Always set a key.
-- **One request at a time:** by default Strata answers one request, and the others wait. To answer several at once,
-  set `"parallel": 2` ([BATCHING.md](docs/BATCHING.md)). On a 12 GB card this makes each answer slower.
-- **Long prompts:** Strata reads the first message of a chat in full, about 1 minute per 30,000 tokens. Follow-up
-  messages start in seconds.
+### 5. Optional browser UI / API
 
-More: [where your chats are stored](docs/INSTALL.md#where-things-are-stored), [the API](docs/DETAILS.md#using-it).
+Use Strata's existing Python server with an explicit engine config. First extract the tokenizer from **your exact GGUF**:
 
-### Optional: more speed on one card when the whole model fits in RAM
+```bash
+python tools/strata_tokenizer.py --gguf "$MODEL" --out local-pack --check
+```
 
-Two opt-in settings (by RubenTorney, #1904 and #1905). They help when you run one graphics card and your RAM holds
-every expert (Strata's arena mode, for example Q2_0 or IQ3_XXS on a 64 GB PC). Open your config,
-`strata-<model>.json` in the Strata data folder ([where](docs/INSTALL.md#where-things-are-stored)), and add:
-
-- **Faster decode:** `"--adapt-async", "1"` to the `"args"` list. The expert cache then updates on a helper thread
-  instead of pausing the answer. Measured on an RTX 5070 (Windows, Q2_0): +4-5% decode, +7-10% on code and long
-  documents. Answers can differ slightly from the default (they stay the same from run to run).
-- **Faster prompt reading on Windows:** `"STRATA_PIN_BY_NEED": "1"` in the `"env"` block. Windows can lock only about
-  half the RAM for the graphics card; this locks the experts the card actually needs first. Measured on the RTX 5070:
-  +4.4% prompt reading.
+Save a local `moementum.local.json` based on this example, replacing **every absolute path** with yours:
 
 ```json
-"args": [ ..., "--adapt-async", "1" ],
-"env": { "STRATA_PIN_BY_NEED": "1" }
+{
+  "exe": "/absolute/path/to/MoEmentum/build-moementum/strata-q36",
+  "cwd": "/absolute/path/to/MoEmentum",
+  "tokenizer": "/absolute/path/to/MoEmentum/local-pack/tokenizer",
+  "model_name": "moementum-local",
+  "args": [
+    "--native", "/absolute/path/to/Qwen3.8-35B-A3B-IQ2_M.gguf",
+    "--max-context", "4096", "--chunk", "128",
+    "--expert-vram", "3", "--cpu-threads", "5",
+    "--hybrid-rows", "128", "--mtp", "0", "--no-warmup"
+  ],
+  "env": {
+    "STRATA_MMQ_KQ": "1",
+    "STRATA_MMQ_Q4_K_QSUM": "0"
+  }
+}
 ```
 
-Restart Strata (`START-HERE.bat` or `./setup.sh`) after the change. To undo, remove the two entries.
+```bash
+python serve/server.py --engine strata --config moementum.local.json --host 127.0.0.1 --port 8080
+```
 
-## Something went wrong?
+The server wrapper adds `--serve` to the engine invocation. Do not add it a second time to the config above. It provides the inherited browser interface and compatible API; see [server options](serve/server.py) and [API docs](docs/DETAILS.md). Start with loopback only. Do not expose an unauthenticated server to your LAN or the internet; review upstream authentication/TLS options first.
 
-- **My PC froze the first time Strata started.** This is normal while it loads the model. Wait, and don't close the
-  window. Still frozen after 10 minutes? Restart the PC, close other programs and try again, or pick a smaller size.
-- **It stopped while downloading or installing.** Run `START-HERE.bat` (or `./setup.sh`) again. It continues where
-  it stopped.
-- **It's very slow and the disk light keeps blinking, or it says "the engine stopped unexpectedly".** Your PC does
-  not have enough free RAM. Close other programs (browsers use a lot), or pick a smaller size (Q2_0 or IQ2_XS).
-- **It says port 8080 is already in use.** Strata is already running. Look for its window.
+This example does **not** embed our machine-specific calibrated placement map. It is a starting configuration, **not an exact reproduction of the benchmark placement or a guarantee of its timings**. Start separately from any production service; change thread/context/GPU budgets only after checking available resources.
 
-More problems and their fixes: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). Still stuck? Open an
-[issue](https://github.com/Niko1221/Strata/issues) and attach `strata-<model>.log` from the Strata folder. Found a
-security problem? Report it privately: [SECURITY.md](SECURITY.md).
+## CPU-only regression test
 
-## How does it work?
+No GPU, checkpoint or private activation captures are needed. Supply a llama.cpp source tree at the tested dependency revision:
 
-Models like this one usually run on servers with hundreds of gigabytes of graphics memory. Your graphics card has
-12-24 GB. Strata makes the model fit by **sharing the work across your whole PC**. Think of a kitchen: the things
-you use all the time stay on the counter, and the rest waits in the pantry.
+```bash
+git clone https://github.com/ggml-org/llama.cpp.git /path/to/llama.cpp
+git -C /path/to/llama.cpp checkout 3cf03257f219afbe7334045ff7c6a06ac68c627d
+python tools/test_moementum_iq_down.py \
+  --llama-dir /path/to/llama.cpp \
+  --output ./moementum-test-run1
+```
 
-<p align="center"><img src="docs/media/how-it-works.svg" width="860" alt="The model's 24,576 experts: the busiest on the graphics card, all of them in RAM, a lookup table on the SSD"></p>
+Use a **fresh output directory** each time. GCC/G++ on an AVX2/FMA/F16C Linux host are required. The runner compiles GGML reference objects plus the real IQ TU, then checks IQ3_S/IQ2_S, plain/gather variants, widths1..8, multiple seeds, padded strides, partitioned writes and input preservation. This tests the numerical kernel, **not the full native dispatcher or model accuracy**; native dispatch/full-engine evidence is documented separately.
 
-- **The model is a team of 24,576 small specialists ("experts").** Each word needs only 10 of them.
-- **Your graphics card** keeps the few thousand experts that are used most often. **Your RAM** holds all of them,
-  and **your processor** works on the rest at the same time. **Your SSD** holds a big lookup table.
+Fresh verification: the unchanged kernel failed with3644 bit mismatches; the submitted kernel passed **10,368 comparisons with zero bit mismatches and zero preservation failures**. The test returns nonzero on failure. Unsupported CPUs are not qualified by this AVX2-targeted standalone harness. This runner is GCC/Linux-oriented; it is not a Windows or sanitizer qualification.
 
-<p align="center"><img src="docs/media/guess-and-check.svg" width="860" alt="A small helper guesses the next words; the big model checks them all at once and keeps the right ones"></p>
+## Limitations and fallback
 
-- **Guess, then check:** a small helper guesses the next few words. The big model checks them all at once. You get
-  the same answer, 1.6-1.8x sooner.
-- **Long texts are read in big pieces** (up to 8,192 tokens at a time), at over 1,000 tokens per second.
-
-The longer explanation: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md). Every part and its numbers:
-[the details](docs/DETAILS.md#how-it-works) and the [paper](docs/paper/Strata-Paper.pdf).
+- Optimized dispatch is narrow: matching IQ2_S/IQ3_S expert geometry, multi-token groups and an eligible AVX2 CPU. No blanket claim for other models, quantizations or CPUs.
+- `STRATA_NO_IQ256=1` selects existing fallbacks, but disables other IQ256 paths too; it is **not** an exact reproduction of benchmark baseline A.
+- Keep a separate known-good executable/config. Do not overwrite production automatically.
+- Reference-order reduction is verified on exercised synthetic and captured activations, not every possible input or hardware ISA.
+- Model correctness and stock llama.cpp attribution are separate from optimization parity.
+- No published binary, unattended installer, deployment, universal quality gate or cross-platform release qualification is claimed.
 
 ## Credits and license
 
-The model is [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) by the Qwen team. It was
-compressed by [ISTA-DASLab](https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF), UkisAI (Swift 1.5)
-and Unsloth. Strata uses parts of [llama.cpp / ggml](https://github.com/ggml-org/llama.cpp). All credits:
-[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md#credits). Strata is open source under the [MIT License](LICENSE). A few
-parts and every model have their own licenses ([which ones](docs/HOW_IT_WORKS.md#license)).
+- **Strata:** Niko1221 and contributors; the upstream MIT notice remains unchanged in [LICENSE](LICENSE).
+- **llama.cpp / GGML:** quantized formats and reference arithmetic; retain their included notices and licenses.
+- **MoEmentum:** experimental kernel/dispatch work and validation by Mainak Mondal, with AI-assisted development.
+- Model weights and third-party dependencies retain their own licenses. Fork branding does not imply upstream endorsement.
 
-## Support Strata
+## Sources
 
-Strata is free and open source. If it is useful to you, you can support its development:
-
-<p align="center"><a href="https://buymeacoffee.com/strataengine"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a></p>
+[1] https://stratallm.org

@@ -61,3 +61,8 @@ build-vision-cuda12.bat
 
 /.ccache/
 /.rocm-win/
+
+# MoEmentum machine-local paths, extracted tokenizer and CPU test output
+/moementum.local.json
+/local-pack/
+/moementum-test-*/
