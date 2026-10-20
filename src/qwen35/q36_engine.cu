@@ -27,6 +27,7 @@
 #include "strata/prefill/moe_mmq.hpp"
 #include "strata/qwen35/engine.hpp"
 #include "q36_kernels.cuh"
+#include "q36_calibration_map_v4.hpp"
 #if defined(STRATA_Q36_CPU_POOL)
 #include "ggml.h"
 #include "strata/kernels/cpu/native_expert.hpp"
@@ -2240,6 +2241,75 @@ struct Engine {
         ++stream_pos;
     }
 
+    bool v4_map_loaded = false;
+    q36_calibration::CalibrationMap v4_map;
+    // Presence (even an empty value) retains the historical opt-in/reset contract.
+    bool request_local_placement_enabled() const {
+        return std::getenv("Q36_STATELESS_ADAPTIVE_V2") || std::getenv("Q36_INITIAL_PLACEMENT_MAP_V4");
+    }
+
+    void request_local_placement() {
+        const char* map_env = std::getenv("Q36_INITIAL_PLACEMENT_MAP_V4");
+        if (!m->hybrid) {
+            if (map_env && *map_env) {
+                std::fprintf(stderr, "[Q36-CALIBRATION-V4] FATAL: calibrated placement requires hybrid slots\n");
+                std::abort();
+            }
+            return;
+        }
+        if (map_env && *map_env && !v4_map_loaded) {
+            std::string err;
+            if (!q36_calibration::load_calibration_map_file(map_env, v4_map, err)) {
+                std::fprintf(stderr, "[Q36-CALIBRATION-V4] FATAL: failed to load map '%s': %s\n", map_env, err.c_str());
+                std::abort();
+            }
+            std::vector<size_t> actual_slots(hy.size(), 0);
+            for (size_t li = 0; li < hy.size(); ++li) {
+                actual_slots[li] = hy[li].slot_of.empty() ? 0 : hy[li].exp_in_slot.size();
+            }
+            if (!q36_calibration::validate_topology(v4_map, hy.size(), (size_t) m->g.n_expert, actual_slots, err)) {
+                std::fprintf(stderr, "[Q36-CALIBRATION-V4] FATAL: topology mismatch for map '%s': %s\n", map_env, err.c_str());
+                std::abort();
+            }
+            if (const char* exp_sha = std::getenv("Q36_EXPECTED_MODEL_SHA256")) {
+                if (exp_sha && *exp_sha) {
+                    if (!q36_calibration::verify_model_sha256(v4_map, exp_sha, err)) {
+                        std::fprintf(stderr, "[Q36-CALIBRATION-V4] FATAL: model SHA mismatch: %s\n", err.c_str());
+                        std::abort();
+                    }
+                }
+            }
+            v4_map_loaded = true;
+        }
+
+        // Finish both compute and expert staging readers before changing shared slots/maps.
+        // Copy in place: captured graph addresses and allocated slot buffers remain valid.
+        CK(cudaStreamSynchronize(st));
+        if (cst) CK(cudaStreamSynchronize(cst));
+        size_t uploads = 0;
+        for (size_t li = 0; li < hy.size(); ++li) {
+            auto& H = hy[li];
+            const auto& L = layer_at((int) li);
+            if (H.slot_of.empty()) continue;
+            std::fill(H.score.begin(), H.score.end(), 0.0);
+            std::fill(H.slot_of.begin(), H.slot_of.end(), -1);
+            const std::vector<int32_t>* targets = v4_map_loaded ? &v4_map.layer_targets[li] : nullptr;
+            for (size_t s = 0; s < H.exp_in_slot.size(); ++s) {
+                const int target_exp = targets ? (*targets)[s] : (int) s;
+                if (H.exp_in_slot[s] != target_exp) {
+                    CK(cudaMemcpyAsync(L.blobs + s * L.stride, L.hblobs + (size_t) target_exp * L.stride, L.L.bytes,
+                                       cudaMemcpyHostToDevice, st));
+                    ++uploads;
+                }
+                H.slot_of[(size_t) target_exp] = (int) s;
+                H.exp_in_slot[s] = target_exp;
+            }
+            CK(cudaMemcpyAsync(H.slot_of_d, H.slot_of.data(), H.slot_of.size() * sizeof(int32_t), cudaMemcpyHostToDevice, st));
+        }
+        CK(cudaStreamSynchronize(st));
+        std::fprintf(stderr, "[Q36-CALIBRATION-V4] request-local placement: %zu uploads (calibrated=%d)\n", uploads, v4_map_loaded ? 1 : 0);
+    }
+
     /// The GPU half of a hybrid MoE: the routing to the host, the resident experts' entries grouped and run.
     void moe_hybrid_gpu(const Layer& L, size_t li, int T) {
         const auto& g = m->g;
@@ -3448,11 +3518,26 @@ struct Serve {
         return best >= 0 ? best : free_empty >= 0 ? free_empty : lru;
     }
 
+    // Shared hybrid placement may only be reset for a serial text GEN. Reject
+    // before admission, session selection, image loading or any engine mutation.
+    bool placement_request_allowed(bool adm, bool geni) const {
+        if (!E.request_local_placement_enabled()) return true;
+        if (adm || geni || E.n_sess != 1 || n_active != 0 || E.rows_mode) return false;
+        for (const auto& ss : E.sess) if (ss.active) return false;
+        for (const auto& sl : slots) if (sl.active) return false;
+        return true;
+    }
+
     void request(const std::string& line) {
         const bool adm = line[0] == 'B';
         const bool geni = line.rfind(adm ? "BGENI " : "GENI ", 0) == 0;
         if (!adm && !geni && line.rfind("GEN ", 0) != 0) {
             std::printf("ERR expected: GEN <max_new> [key=value ...] <id,id,...> or GENI <max_new> [keys] <file> <id,id,...>\n");
+            std::fflush(stdout);
+            return;
+        }
+        if (!placement_request_allowed(adm, geni)) {
+            std::printf("ERR request-local placement requires serial text GEN with one session and no active batch slots\n");
             std::fflush(stdout);
             return;
         }
@@ -3536,9 +3621,18 @@ struct Serve {
             if (!ve.empty()) { std::printf("ERR %s\n", ve.c_str()); std::fflush(stdout); return; }
         }
         stop.store(false);
-        // ---- the session: the held state continues when the request extends it (the recurrent state cannot step back)
-        const int s = adm ? slot : pick_session(ids, ir.imgs);
+        // [Q36-PLACEMENT-BOUNDARY] Select the sole session without prefix matching
+        // first: even a naturally extending prompt must start from reset state.
+        const bool local_placement = E.request_local_placement_enabled();
+        const int s = local_placement ? 0 : adm ? slot : pick_session(ids, ir.imgs);
         Engine::Sess& ss = E.sess[(size_t) s];
+        if (local_placement) {
+            E.select(s);
+            E.request_local_placement();
+            E.reset();
+            ss.live.clear();
+            ss.imgs.clear();
+        }
         size_t reuse = match_len(ss, ids, ir.imgs);
         if (adm) {   // another session holding more of this prompt (the conversation was read alone): copy its state
             int src = -1;
@@ -3554,7 +3648,7 @@ struct Serve {
             }
         }
         E.select(s);
-        if (reuse == 0) {
+        if (reuse == 0 && !local_placement) {
             E.reset();
             ss.live.clear();
             ss.imgs.clear();
