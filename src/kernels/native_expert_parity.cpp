@@ -24,7 +24,9 @@
 #include "strata/kernels/cpu/tq_cpu.hpp"
 #include "ggml-cpu.h"
 #include "strata/kernels/iq_kernels.hpp"
+#ifdef STRATA_PARITY_MMQ
 #include "strata/prefill/moe_mmq.hpp"
+#endif
 #include "strata/kernels/ngram.hpp"
 #include "strata/kernels/native_mmvq.hpp"
 #include "strata/core/native_dense.hpp"
@@ -475,6 +477,7 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
             if (!(dq_err < 1e-6) || h_differ || (exact && (differ || emb_differ))) ++failures;
         }
         if (q36_geometry) {
+#ifdef STRATA_PARITY_MMQ
             namespace mmq = strata::prefill::mmq;
             if (!mmq::supported(f.gu_type) || !mmq::supported(f.d_type)) {
                 std::printf("Q36 MMQ: missing projection support\n");
@@ -507,6 +510,9 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
                 if (!ok_m) ++failures;
                 cudaFree(mx); cudaFree(mhq); cudaFree(mgu); cudaFree(mh);
             }
+#else
+            std::printf("Q36 MMQ: unavailable (fixture not built)\n");
+#endif
         }
         cudaFree(dblob); cudaFree(dx); cudaFree(dxq); cudaFree(dscr); cudaFree(dout); cudaFree(dptr);
         cudaFree(dstart); cudaFree(dn); cudaFree(ddst); cudaFree(dtok);
