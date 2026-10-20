@@ -13,6 +13,8 @@
 
 **MoEmentum is an experimental [Strata](https://github.com/Niko1221/Strata) fork focused on faster mixture-of-experts prefill on consumer hardware.** Our tested setup runs Qwen3.8-35B-A3B-Distill IQ2_M with an **RTX 3050 6GB and 32GiB RAM**. It shares expert work between GPU and CPU, with a narrowly guarded optimization for CPU expert down-projections.
 
+> **Integration branch:** this source integrates fork `main` at `e88ee39d1d6be6e3364183af3b39b62a7ed6f211`. The measurements below describe the earlier qualified source, **not this merged engine**. GPU builds, model parity and before/after performance are pending. See [source integration status](docs/MOEMENTUM_MAIN_INTEGRATION.md).
+
 - **Measured, not projected:** 38.4–39.8 tokens/s generation and 101.4–102.4 tokens/s prompt processing in two served workloads (three samples each).
 - **Faster prefill:** 24.35–30.78% less prefill time than our pre-optimization Strata-based baseline across four controlled tasks. Decode was essentially unchanged.
 - **Usable interface:** browser Chat, Monitor and About views, plus the inherited OpenAI-compatible API. A private authenticated TLS deployment was validated.
