@@ -1,4 +1,4 @@
-// serve/web/app.js - the Strata web app: Chat, Monitor, About. No framework, no network beyond this server.
+// serve/web/app.js - the MoEmentum web app, based on Strata: Chat, Monitor, About.
 // The Monitor tab rebuilds PR #22's dashboard idea (code-martin) on the server's own /metrics.
 "use strict";
 
@@ -103,7 +103,7 @@ async function loadHealth() {
     health = await (await fetch("health")).json();
     $("attach-btn").title = health.images ? "Attach a text file or a picture (or drop it here)"
                                           : "Attach a text file (or drop it here)";
-    $("chat-empty-sub").textContent = `${health.model} runs on this PC. Nothing leaves it.`;
+    $("chat-empty-sub").textContent = `${health.model} runs on your MoEmentum server.`;
     $("tab-btn-images").hidden = !health.image_generation;
     if (location.hash === "#images" && health.image_generation) showTab("images");
   } catch (e) {

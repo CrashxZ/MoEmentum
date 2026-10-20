@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Strata</title>
+<title>MoEmentum</title>
 <link rel="icon" href="web/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="web/tokens.css">
 <link rel="stylesheet" href="web/components.css">
@@ -19,7 +19,7 @@
 </head>
 <body>
 <header class="st-header">
-  <span class="st-header__brand">Strata</span>
+  <a class="st-header__brand" href="https://github.com/CrashxZ/MoEmentum" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none" title="MoEmentum on GitHub">MoEmentum</a>
   <nav class="st-tabs" role="tablist" aria-label="Views">
     <button class="st-tab" role="tab" id="tab-btn-chat" aria-controls="view-chat" aria-selected="true" data-tab="chat">
       <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-chat"/></svg>Chat</button>
@@ -44,7 +44,7 @@
       <div class="chat" id="chat">
         <div class="chat-empty" id="chat-empty">
           <div class="chat-empty__title">Ask anything</div>
-          <div class="chat-empty__sub" id="chat-empty-sub">The model runs on this PC. Nothing leaves it.</div>
+          <div class="chat-empty__sub" id="chat-empty-sub">Local inference, powered by MoEmentum.</div>
         </div>
       </div>
     </div>
@@ -195,12 +195,13 @@
         <div class="toggle-row"><span>Dark theme</span>
           <button class="st-toggle" id="dark-toggle" role="switch" aria-checked="false" aria-label="Dark theme"></button></div>
         <p class="muted small">Chats, settings and the key are kept in this browser only.
-          <a href="https://github.com/Niko1221/Strata" target="_blank" rel="noopener noreferrer">Strata on GitHub</a></p>
+          <a href="https://github.com/CrashxZ/MoEmentum" target="_blank" rel="noopener noreferrer">MoEmentum on GitHub</a></p>
+        <p class="muted small">Built on <a href="https://github.com/Niko1221/Strata" target="_blank" rel="noopener noreferrer">Strata</a>. Upstream credits and license are preserved.</p>
       </div>
       <div class="st-card cfg-card" id="cfg-card" hidden>
         <div class="req-head"><span class="card-title">Model settings</span><span class="muted small" id="cfg-file"></span></div>
         <p class="muted small">Kept in the model's run config for every client. An empty field is the default. They
-          take effect the next time the model starts (close Strata's window and start it again).</p>
+          take effect the next time the model starts. For a managed server, restart its inference service.</p>
         <form class="cfg-form" id="cfg-form"></form>
         <div class="cfg-actions"><button class="st-btn st-btn--primary" id="cfg-save" type="button">Save</button>
           <span class="muted small" id="cfg-msg" role="status"></span></div>
