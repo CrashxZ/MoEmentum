@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" role="img" aria-labelledby="title desc">
+<title id="title">MoEmentum</title>
+<desc id="desc">Experimental low-VRAM MoE inference. Built on Strata. Give your experts some momentum.</desc>
+<rect width="1000" height="300" rx="20" fill="#15283b"/>
+<path d="M50 73 H112 L156 144 L200 73 H242" fill="none" stroke="#5bc5d5" stroke-width="8" stroke-linecap="round" opacity="0.4"/>
+<path d="M50 116 H112 L156 144 L200 116 H242" fill="none" stroke="#5bc5d5" stroke-width="8" stroke-linecap="round" opacity="0.6000000000000001"/>
+<path d="M50 159 H112 L156 144 L200 159 H242" fill="none" stroke="#5bc5d5" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+<path d="M50 202 H112 L156 144 L200 202 H242" fill="none" stroke="#5bc5d5" stroke-width="8" stroke-linecap="round" opacity="1.0"/>
+<text x="290" y="108" font-family="Verdana,DejaVu Sans,sans-serif" font-size="60" font-weight="700" fill="#f3f8fc">MoEmentum</text>
+<text x="294" y="151" font-family="Verdana,DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#82d4df">Give your experts some momentum.</text>
+<text x="294" y="208" font-family="Verdana,DejaVu Sans,sans-serif" font-size="17" font-weight="700" fill="#f3bf75">LOW-VRAM MoE INFERENCE</text>
+<text x="294" y="244" font-family="Verdana,DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#adbdce">Experimental source build / built on Strata</text>
+</svg>

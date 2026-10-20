@@ -1,188 +1,159 @@
-# MoEmentum
+<p align="center">
+  <img src="docs/media/moementum-hero.svg" width="900" alt="MoEmentum — give your experts some momentum. Experimental low-VRAM MoE inference, built on Strata.">
+</p>
 
-**Give your experts some momentum.**
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-347c91" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/status-experimental_source_build-e5a546" alt="Experimental source build">
+  <img src="https://img.shields.io/badge/tested-RTX_3050_6GB-347c91" alt="Tested on RTX 3050 6GB">
+  <a href="https://github.com/Niko1221/Strata"><img src="https://img.shields.io/badge/built_on-Strata-718096" alt="Built on Strata"></a>
+</p>
 
-An experimental **Strata fork** exploring faster mixture-of-experts (MoE) prefill on consumer hardware. MoEmentum improves a narrowly guarded CPU expert down-projection path; it is **not a new model, a llama.cpp replacement written from scratch, or an official Strata release**.
+<h3 align="center">A small GPU. A team of experts. Less time reading your prompt.</h3>
 
-Built on [Strata by Niko1221](https://github.com/Niko1221/Strata), with its history and [MIT license](LICENSE) preserved. The original README is available as [README.upstream.md](README.upstream.md). The Strata website describes the parent project's consumer-GPU MoE inference goals; its hardware tables and headline speeds are **not MoEmentum measurements**.[1]
+**MoEmentum is an experimental [Strata](https://github.com/Niko1221/Strata) fork focused on faster mixture-of-experts prefill on consumer hardware.** Our tested setup runs Qwen3.8-35B-A3B-Distill IQ2_M with an **RTX 3050 6GB and 32GiB RAM**. It shares expert work between GPU and CPU, with a narrowly guarded optimization for CPU expert down-projections.
 
-> **Status: experimental source build.** The optimization lives on branch [`moementum/iq-down-prefill`](https://github.com/CrashxZ/MoEmentum/tree/moementum/iq-down-prefill), not the fork's upstream-tracking `main` branch. Clone that branch using the instructions below. No MoEmentum binary release or one-click installer has been qualified.
+- **Measured, not projected:** 38.4–39.8 tokens/s generation and 101.4–102.4 tokens/s prompt processing in two served workloads (three samples each).
+- **Faster prefill:** 24.35–30.78% less prefill time than our pre-optimization Strata-based baseline across four controlled tasks. Decode was essentially unchanged.
+- **Usable interface:** browser Chat, Monitor and About views, plus the inherited OpenAI-compatible API. A private authenticated TLS deployment was validated.
+- **Source-first:** no qualified MoEmentum binary release or one-click installer yet. Build this fork explicitly; inherited installers can download upstream binaries instead.
 
-## What changes?
+<p align="center"><a href="#how-fast-is-it">Performance</a> · <a href="#how-does-it-work">Engine</a> · <a href="docs/MOEMENTUM_INSTALL.md">Build & run</a> · <a href="docs/MOEMENTUM_BENCHMARK.md">Benchmark evidence</a> · <a href="#credits-and-license">Credits</a></p>
 
-For matching Qwen expert layouts, CPU prefill can process several tokens sharing an expert while decoding its quantized weights once. MoEmentum:
+> This is not a new model or an official Strata release. Results below are from **our hardware and our model**, not Strata's larger-model homepage benchmarks. No stock llama.cpp speed comparison is claimed.
 
-- Enables the existing AVX2 multi-token down-row kernel for the narrowly checked IQ2_S/IQ3_S expert geometry (`n_embd=2048`, `n_ff=512`, `nt=2..8`).
-- Uses reference-order floating-point reduction for those IQ down-row formats, preserving GGML-reference output bits on the exercised inputs.
-- Keeps single-token native dispatch and unsupported layouts on their existing fallback paths; the new dispatch excludes AVX-512 CPUs.
-- Leaves gate/up arithmetic, model weights, routing algorithms and API implementation unchanged by this optimization.
+## What you need
 
-Only `src/kernels/cpu/native_expert.cpp` and `src/kernels/cpu/iq_avx2_rows.inl` change for the optimization. **Both `native_expert.cpp` and `iq_avx2.cpp` must be recompiled**, because the latter includes the changed inline header. Replacing one object alone is insufficient. Binary names and existing `STRATA_*` configuration names remain unchanged for compatibility.
+Our measured configuration—not a universal minimum:
 
-This branch also inherits two earlier local Strata compatibility/diagnostic commits: mixed Qwen expert quantization support and a default-off Q4 quantized-sum experiment. The measured runs kept that Q4 experiment disabled; this is not a claim that those separate experiments improve performance.
+| Component | Tested setup |
+| --- | --- |
+| GPU | NVIDIA GeForce RTX 3050, 6GB VRAM (6,144MiB) |
+| CPU | Intel Core i7-8700 @ 3.20GHz, as reported inside the guest |
+| Guest | Linux / KVM, 6 vCPUs, 32GiB RAM |
+| CPU expert workers | 5 threads |
+| Model | Qwen3.8-35B-A3B-Distill, IQ2_M GGUF, about 12.56GB |
+| Runtime | Context 4,096 · prompt chunk 128 · expert VRAM budget 3GiB · hybrid rows 128 · MTP off |
 
-## What have we measured?
+The optimized path requires AVX2/FMA/F16C and a matching IQ2_S/IQ3_S expert layout. The new dispatch excludes AVX-512 CPUs. Other models, CPUs and platforms are not covered by these measurements. The full model does **not** fit inside 6GB VRAM; system RAM matters.
 
-One Linux guest: **RTX 3050 6GB, 32GiB RAM, six vCPUs**, five CPU expert threads; Qwen3.8-35B-A3B-Distill IQ2_M. Same checkpoint and placement for baseline A and candidate C; context4096, prompt chunk128, expert budget3GiB, hybrid rows128, MTP disabled. These are a **tested configuration**, not universal minimum requirements.
+## How fast is it?
 
-Four-task trial, three fresh processes per arm, fixed order `A,C,C,A,A,C`:
+**TPS = tokens per second.** Prefill reads the prompt; decode writes the answer. They measure different stages and must not be added together.
 
-| Input tokens | Baseline median prefill | MoEmentum median prefill | Less prefill time |
-|---:|---:|---:|---:|
-| 100 | 1.458s | 1.103s | 24.35% |
-| 190 | 2.540s | 1.856s | 26.94% |
-| 1,767 | 25.790s | 17.851s | 30.78% |
-| 2,514 | 37.064s | 25.831s | 30.31% |
+### Running through the API
 
-- **24 requests; 918 emitted token occurrences, including EOS: complete A/C output parity.** Three repeats do not constitute three new tasks.
-- Median whole-process lifetime fell about24.91%; decode was essentially unchanged.
-- **Absolute task correctness was only1/4 unique tasks for both engines.** The optimization preserves the baseline's mistakes; it does not make the model smarter.
-- An earlier separate two-prompt trial also matched outputs, with observed prefill reductions of28–34%.
-- These are bounded observations, not statistical significance, universal bit identity, a general throughput guarantee or a speed comparison with stock llama.cpp. Independent llama.cpp task-error attribution remains untested.
+Measured through an authenticated TLS endpoint using the deployed optimized binary, after warm-up. Three serial requests per workload, no reused prompt tokens, no speculative decoding.
 
-See [the sanitized benchmark record](docs/MOEMENTUM_BENCHMARK.md) for all samples, pins and limitations. Private captures, generated binaries, machine credentials and checkpoints are not included.
+| Workload | Input → output tokens | Reads prompt | Generates answer | Whole HTTP request |
+| --- | ---: | ---: | ---: | ---: |
+| Short generation | 71 → 128 | **101.4 TPS** | **38.4 TPS** | 4.169s |
+| Long prefill | 1,763 → 23 | **102.4 TPS** | **39.8 TPS** | 17.951s |
 
-## Install from source: Linux + NVIDIA
+All values are medians. The short workload hit its 128-token cap; the long workload stopped naturally. Stage TPS excludes other stages, model loading and HTTP overhead: **39.8 TPS is not end-to-end request throughput**. These are small observational samples, not multi-user capacity or a quality score.
 
-### 1. Prerequisites
+```text
+Prompt processing — one block ≈ 5 TPS
+Short  ████████████████████  101.4 TPS
+Long   ████████████████████  102.4 TPS
 
-- Linux x86-64; **AVX2, FMA and F16C** for the optimized CPU kernel. Other CPUs can use upstream paths, but this optimization is not qualified there.
-- An NVIDIA driver and a **CUDA development toolkit containing `nvcc`**, not only the CUDA runtime shipped in Python wheels. Use the CUDA/toolchain compatibility guidance in [upstream installation docs](docs/INSTALL.md).
-- Git, C/C++ compilers supporting C++20, Python3.10+, venv/pip, CMake3.24+ and Ninja.
-- Sufficient RAM, GPU memory and disk for your chosen checkpoint and build. Our tested GGUF is about12.56GB; leave additional space for dependencies, build artifacts and runtime allocations. Other models need different resources.
-
-On Debian/Ubuntu, the basic CPU build prerequisites are:
-
-```bash
-sudo apt-get update
-sudo apt-get install git build-essential python3 python3-venv python3-pip
+Answer generation — one block ≈ 2 TPS
+Short  ███████████████████   38.4 TPS
+Long   ████████████████████  39.8 TPS
 ```
 
-Install the appropriate NVIDIA driver/CUDA toolkit separately. Check them before building:
+The two panels use different scales. [All six sanitized samples and methodology](docs/MOEMENTUM_SERVING.md) · [Machine-readable data](docs/moementum/serving.json).
 
-```bash
-nvidia-smi
-nvcc --version
+### What did our optimization change?
+
+A **separate controlled trial**, not the API workloads above: same checkpoint, calibrated placement and runtime settings; three fresh processes per arm, order `A,C,C,A,A,C`, four tasks per process, no KV reuse.
+
+<p align="center"><img src="docs/media/moementum-prefill.svg" width="900" alt="Controlled prefill comparison on RTX 3050 6GB: baseline 67.8–74.8 TPS; MoEmentum 90.7–102.4 TPS across four tasks. See the exact values below."></p>
+
+| Input tokens | Baseline prefill | MoEmentum prefill | Less prefill time |
+| ---: | ---: | ---: | ---: |
+| 100 | 68.6 TPS | **90.7 TPS** | 24.35% |
+| 190 | 74.8 TPS | **102.4 TPS** | 26.94% |
+| 1,767 | 68.5 TPS | **99.0 TPS** | 30.78% |
+| 2,514 | 67.8 TPS | **97.3 TPS** | 30.31% |
+
+TPS is calculated as input tokens divided by median engine prefill seconds, using unrounded sample data. The baseline is the tested **pre-optimization Strata-based build**, not today's upstream release. A reduction in time is not the same percentage as an increase in TPS.
+
+**Correctness boundary:** all emitted sequences matched across 24 requests and 918 token occurrences, including EOS. However, **both engines passed only 1 of the 4 unique tasks**. Preserving an answer does not make it correct. Decode was essentially unchanged; no generation speedup is claimed. Fixed ordering and three repeats do not establish statistical significance.
+
+[Full experiment, hashes and limitations](docs/MOEMENTUM_BENCHMARK.md) · [Original sample data](docs/moementum/benchmark.json).
+
+## How does it work?
+
+Strata provides the inference engine, CPU/GPU expert execution and serving layer. MoEmentum changes one narrow piece: **how matching CPU expert down-projections process groups of tokens during prefill**.
+
+```mermaid
+flowchart TD
+    Client[Browser chat or API client] --> Server[Strata-derived serving layer]
+    Server --> Engine[MoEmentum / strata-q36]
+    Engine --> GPU[GPU-resident expert work]
+    Engine --> CPU[CPU expert work from system RAM]
+    CPU --> Guard{Eligible AVX2 CPU, matching IQ layout, 2–8 tokens?}
+    Guard -->|Yes| Fast[Multi-token down rows
+Reuse decoded expert weights
+Reference-order reduction]
+    Guard -->|No| Fallback[Existing fallback path]
+    GPU --> Result[Combine expert results]
+    Fast --> Result
+    Fallback --> Result
+    Result --> Server
 ```
 
-### 2. Get MoEmentum and Python dependencies
+Think of an expert's weights as a reference book. When several prompt tokens need the same expert, the multi-token kernel can decode its weights once for the group rather than repeating that work separately. Reference-order reduction preserves GGML-reference output bits on the inputs we exercised.
 
-Clone the published optimization branch:
+The new dispatch is guarded to IQ2_S/IQ3_S down rows with `n_embd=2048`, `n_ff=512`, and token groups `2..8`. Single-token and unsupported layouts retain their existing dispatch paths. Gate/up arithmetic, model weights and routing algorithms are not changed by this optimization. MTP is disabled in all results shown here.
+
+[Kernel and fallback details](docs/MOEMENTUM_BENCHMARK.md#source-lineage). The branch also inherits mixed-expert compatibility work and a separate default-off Q4 diagnostic experiment; the latter was disabled in these measurements.
+
+## Install and run
+
+**Build the optimization branch**, not the upstream-tracking `main`:
 
 ```bash
 git clone --branch moementum/iq-down-prefill https://github.com/CrashxZ/MoEmentum.git
 cd MoEmentum
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements.txt
 ```
 
-The upstream [requirements file](requirements.txt) pins the Python tools. There is no separate package named `moementum` to install with pip.
+Continue with the **[Linux + NVIDIA build and launch guide](docs/MOEMENTUM_INSTALL.md)**. It includes CUDA prerequisites, the actual `strata-q36` build, model/tokenizer preparation, a runnable server configuration, and CPU-only regression tests.
 
-### 3. Compile the actual fork
+> `./setup.sh` and `START-HERE.bat` are inherited from Strata and may fetch an upstream binary. They are **not a qualified MoEmentum installation path**. Our private deployment succeeded, but the generic clean-checkout guide has not been independently qualified end-to-end as an installer.
 
-Example for the tested Ampere RTX3050 (`CUDA architecture86`):
+The executable and `STRATA_*` variable names remain unchanged for compatibility. Both CPU translation units affected by the inline-header change must be recompiled; a normal full CMake build handles that dependency.
+
+## Using it
+
+Once you have built the engine, supplied a model and written your configuration as described in the guide:
 
 ```bash
-cmake -S . -B build-moementum -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DSTRATA_ENABLE_CUDA=ON \
-  -DSTRATA_NATIVE_EXPERTS=ON \
-  -DSTRATA_MMQ_KQUANTS=ON \
-  -DSTRATA_BUILD_TESTS=OFF \
-  -DCMAKE_CUDA_ARCHITECTURES=86 \
-  -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared
-cmake --build build-moementum --target strata-q36 -j 2
+python serve/server.py --engine strata --config moementum.local.json \
+  --host 127.0.0.1 --port 8080
 ```
 
-Use the architecture appropriate to your GPU, not86 universally. The target and native-expert dependency linkage are defined in [CMakeLists.txt](CMakeLists.txt); GGML is fetched at the revision pinned there. Limit parallel jobs on RAM-constrained machines.
+- **Browser:** `http://127.0.0.1:8080` — Chat, Monitor and About.
+- **OpenAI-compatible clients:** `http://127.0.0.1:8080/v1` — configure the server's model name and API key if enabled.
+- **Network access:** keep loopback as the default. Add authentication and TLS before opening access beyond the machine. Port 8444 is our deployment's proxy choice, not a required engine port.
 
-**Do not assume `./setup.sh` or `START-HERE.bat` installed MoEmentum.** The inherited installer normally downloads an upstream Strata binary. Building this checkout and explicitly selecting its `build-moementum/strata-q36` executable avoids that silent substitution. The inherited setup's `qwen36` family is marked download-only in this snapshot, so it is not the installation route for this tested smaller-model configuration.
+[Build, config and API notes](docs/MOEMENTUM_INSTALL.md#5-optional-browser-ui--api) · [Inherited API documentation](docs/DETAILS.md).
 
-The measured C binary was built and fully linked from these kernel source bytes in a controlled private build. The generic clean-checkout installation above is derived from the actual CMake targets; it has **not been rerun end-to-end as a fresh installer qualification**. Windows/AMD/Mac builds are inherited upstream capabilities, not newly validated MoEmentum platforms.
+## Validation and limits
 
-### 4. Supply a compatible model
+- **CPU numerical regression:** 10,368 comparisons, zero bit mismatches and zero preservation failures for the submitted kernel. The unchanged kernel failed with 3,644 mismatches. [Run it yourself](docs/MOEMENTUM_INSTALL.md#cpu-only-regression-test).
+- **Full-engine parity:** finite task coverage, not proof of universal bit identity or model accuracy.
+- **Served deployment:** authenticated models, completion, streaming and restart smoke checks passed in a private Linux/NVIDIA setup. No public weights, credentials or private deployment bundle is shipped.
+- **Not qualified here:** Windows/AMD/Mac, other model layouts, multi-user saturation, a one-click installer, a MoEmentum binary release, or a stock llama.cpp performance comparison.
 
-Obtain your model from a trusted distributor and obey its license. MoEmentum does not redistribute weights. Our tested checkpoint is the **IQ2_M quantization of Empero's Qwen3.8-35B-A3B-Distill**, not the larger model advertised in the upstream homepage examples. Its checksum is in the benchmark record.
+## Contributing
 
-Set the local absolute path, without duplicating a model you already have:
-
-```bash
-export MODEL=/absolute/path/to/Qwen3.8-35B-A3B-IQ2_M.gguf
-sha256sum "$MODEL"
-```
-
-The fast-path guards validate the expert layout. A similarly named GGUF with different tensor geometry may use fallback paths and must not be advertised as having the measured speedup.
-
-### 5. Optional browser UI / API
-
-Use Strata's existing Python server with an explicit engine config. First extract the tokenizer from **your exact GGUF**:
-
-```bash
-python tools/strata_tokenizer.py --gguf "$MODEL" --out local-pack --check
-```
-
-Save a local `moementum.local.json` based on this example, replacing **every absolute path** with yours:
-
-```json
-{
-  "exe": "/absolute/path/to/MoEmentum/build-moementum/strata-q36",
-  "cwd": "/absolute/path/to/MoEmentum",
-  "tokenizer": "/absolute/path/to/MoEmentum/local-pack/tokenizer",
-  "model_name": "moementum-local",
-  "args": [
-    "--native", "/absolute/path/to/Qwen3.8-35B-A3B-IQ2_M.gguf",
-    "--max-context", "4096", "--chunk", "128",
-    "--expert-vram", "3", "--cpu-threads", "5",
-    "--hybrid-rows", "128", "--mtp", "0", "--no-warmup"
-  ],
-  "env": {
-    "STRATA_MMQ_KQ": "1",
-    "STRATA_MMQ_Q4_K_QSUM": "0"
-  }
-}
-```
-
-```bash
-python serve/server.py --engine strata --config moementum.local.json --host 127.0.0.1 --port 8080
-```
-
-The server wrapper adds `--serve` to the engine invocation. Do not add it a second time to the config above. It provides the inherited browser interface and compatible API; see [server options](serve/server.py) and [API docs](docs/DETAILS.md). Start with loopback only. Do not expose an unauthenticated server to your LAN or the internet; review upstream authentication/TLS options first.
-
-This example does **not** embed our machine-specific calibrated placement map. It is a starting configuration, **not an exact reproduction of the benchmark placement or a guarantee of its timings**. Start separately from any production service; change thread/context/GPU budgets only after checking available resources.
-
-## CPU-only regression test
-
-No GPU, checkpoint or private activation captures are needed. Supply a llama.cpp source tree at the tested dependency revision:
-
-```bash
-git clone https://github.com/ggml-org/llama.cpp.git /path/to/llama.cpp
-git -C /path/to/llama.cpp checkout 3cf03257f219afbe7334045ff7c6a06ac68c627d
-python tools/test_moementum_iq_down.py \
-  --llama-dir /path/to/llama.cpp \
-  --output ./moementum-test-run1
-```
-
-Use a **fresh output directory** each time. GCC/G++ on an AVX2/FMA/F16C Linux host are required. The runner compiles GGML reference objects plus the real IQ TU, then checks IQ3_S/IQ2_S, plain/gather variants, widths1..8, multiple seeds, padded strides, partitioned writes and input preservation. This tests the numerical kernel, **not the full native dispatcher or model accuracy**; native dispatch/full-engine evidence is documented separately.
-
-Fresh verification: the unchanged kernel failed with3644 bit mismatches; the submitted kernel passed **10,368 comparisons with zero bit mismatches and zero preservation failures**. The test returns nonzero on failure. Unsupported CPUs are not qualified by this AVX2-targeted standalone harness. This runner is GCC/Linux-oriented; it is not a Windows or sanitizer qualification.
-
-## Limitations and fallback
-
-- Optimized dispatch is narrow: matching IQ2_S/IQ3_S expert geometry, multi-token groups and an eligible AVX2 CPU. No blanket claim for other models, quantizations or CPUs.
-- `STRATA_NO_IQ256=1` selects existing fallbacks, but disables other IQ256 paths too; it is **not** an exact reproduction of benchmark baseline A.
-- Keep a separate known-good executable/config. Do not overwrite production automatically.
-- Reference-order reduction is verified on exercised synthetic and captured activations, not every possible input or hardware ISA.
-- Model correctness and stock llama.cpp attribution are separate from optimization parity.
-- No published binary, unattended installer, deployment, universal quality gate or cross-platform release qualification is claimed.
+Use [MoEmentum issues](https://github.com/CrashxZ/MoEmentum/issues) for fork-specific problems. Include hardware, source revision, model/quantization, runtime settings, reproducible steps and unedited timing samples. Separate prompt processing from answer generation and report failures as well as wins. Remove tokens, private paths and user prompts before sharing logs.
 
 ## Credits and license
 
-- **Strata:** Niko1221 and contributors; the upstream MIT notice remains unchanged in [LICENSE](LICENSE).
+- **Strata:** Niko1221 and contributors. Its history and original [MIT license](LICENSE) are preserved. [Upstream README snapshot](README.upstream.md) · [Current upstream project](https://github.com/Niko1221/Strata).
 - **llama.cpp / GGML:** quantized formats and reference arithmetic; retain their included notices and licenses.
-- **MoEmentum:** experimental kernel/dispatch work and validation by Mainak Mondal, with AI-assisted development.
+- **MoEmentum:** experimental kernel/dispatch work and validation by **Mainak Mondal**, with AI-assisted development.
 - Model weights and third-party dependencies retain their own licenses. Fork branding does not imply upstream endorsement.
-
-## Sources
-
-[1] https://stratallm.org

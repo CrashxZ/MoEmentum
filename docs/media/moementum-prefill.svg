@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" role="img" aria-labelledby="title desc">
+<title id="title">Controlled prefill throughput</title>
+<desc id="desc">Baseline versus MoEmentum on RTX 3050 6GB, 32GiB RAM, six vCPUs. Three samples per arm for each of four tasks. All bars share a zero-based 0 to 120 TPS scale.</desc>
+<rect width="1000" height="620" rx="20" fill="#15283b"/>
+<text x="42" y="52" font-family="Verdana,DejaVu Sans,sans-serif" font-size="29" font-weight="700" fill="#f3f8fc">Same hardware. Less prefill time.</text>
+<text x="42" y="86" font-family="Verdana,DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#adbdce">RTX 3050 6GB / 32GiB RAM / 6 vCPUs / IQ2_M</text>
+<rect x="44" y="108" width="14" height="14" fill="#899eb5"/>
+<text x="66" y="121" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#d9e6f2">Pre-optimization baseline</text>
+<rect x="335" y="108" width="14" height="14" fill="#5bc5d5"/>
+<text x="358" y="121" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#d9e6f2">MoEmentum</text>
+<path d="M230.0 151 V529" stroke="#31475c" stroke-width="1"/>
+<text x="222.0" y="552" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">0</text>
+<path d="M374.0 151 V529" stroke="#31475c" stroke-width="1"/>
+<text x="366.0" y="552" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">30</text>
+<path d="M518.0 151 V529" stroke="#31475c" stroke-width="1"/>
+<text x="510.0" y="552" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">60</text>
+<path d="M662.0 151 V529" stroke="#31475c" stroke-width="1"/>
+<text x="654.0" y="552" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">90</text>
+<path d="M806.0 151 V529" stroke="#31475c" stroke-width="1"/>
+<text x="798.0" y="552" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">120</text>
+<text x="43" y="190" font-family="Verdana,DejaVu Sans,sans-serif" font-size="17" font-weight="700" fill="#f3f8fc">100 tokens</text>
+<text x="43" y="215" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#f3bf75">24.35% less time</text>
+<rect x="230" y="165" width="329.1730" height="21" rx="3" fill="#899eb5"/>
+<text x="569.1729529556987" y="181" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">68.6 TPS</text>
+<rect x="230" y="195" width="435.1373" height="21" rx="3" fill="#5bc5d5"/>
+<text x="675.1373402230079" y="211" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">90.7 TPS</text>
+<text x="43" y="282" font-family="Verdana,DejaVu Sans,sans-serif" font-size="17" font-weight="700" fill="#f3f8fc">190 tokens</text>
+<text x="43" y="307" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#f3bf75">26.94% less time</text>
+<rect x="230" y="257" width="359.0410" height="21" rx="3" fill="#899eb5"/>
+<text x="599.0409826384788" y="273" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">74.8 TPS</text>
+<rect x="230" y="287" width="491.4323" height="21" rx="3" fill="#5bc5d5"/>
+<text x="731.4322664080181" y="303" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">102.4 TPS</text>
+<text x="43" y="374" font-family="Verdana,DejaVu Sans,sans-serif" font-size="17" font-weight="700" fill="#f3f8fc">1,767 tokens</text>
+<text x="43" y="399" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#f3bf75">30.78% less time</text>
+<rect x="230" y="349" width="328.8780" height="21" rx="3" fill="#899eb5"/>
+<text x="568.8780317571104" y="365" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">68.5 TPS</text>
+<rect x="230" y="379" width="475.1277" height="21" rx="3" fill="#5bc5d5"/>
+<text x="715.12772250605" y="395" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">99.0 TPS</text>
+<text x="43" y="466" font-family="Verdana,DejaVu Sans,sans-serif" font-size="17" font-weight="700" fill="#f3f8fc">2,514 tokens</text>
+<text x="43" y="491" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#f3bf75">30.31% less time</text>
+<rect x="230" y="441" width="325.5747" height="21" rx="3" fill="#899eb5"/>
+<text x="565.5747444306246" y="457" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">67.8 TPS</text>
+<rect x="230" y="471" width="467.1542" height="21" rx="3" fill="#5bc5d5"/>
+<text x="707.1541889103529" y="487" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#f3f8fc">97.3 TPS</text>
+<text x="828" y="552" font-family="Verdana,DejaVu Sans,sans-serif" font-size="14" font-weight="400" fill="#adbdce">prefill TPS</text>
+<text x="42" y="587" font-family="Verdana,DejaVu Sans,sans-serif" font-size="13" font-weight="400" fill="#adbdce">Input tokens / median prefill seconds. Decode essentially unchanged; finite parity coverage.</text>
+</svg>

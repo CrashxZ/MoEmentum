@@ -57,6 +57,6 @@ An initial build also failed closed on additional IQ-TU header dependencies. Tho
 - No new speedup is claimed for decode, AMD, Windows, Mac, VNNI, AVX-512, other models, quantizations or layouts.
 - The published basic launch example deliberately omits machine-specific calibrated placement. It cannot reproduce exact benchmark timings on its own.
 - Full raw service/lease ownership receipts and real activation data remain private. Public summaries and hashes are audit aids, not a self-contained third-party reproduction of the full model experiment.
-- No packaged binary release, clean one-click installer qualification or production deployment has been completed.
+- At the time of this controlled-trial snapshot, no production deployment had been completed (`deployment: false` in the historical JSON). A later private Linux/NVIDIA service deployment was validated separately; see [served throughput and acceptance](MOEMENTUM_SERVING.md). No packaged MoEmentum binary release or clean one-click installer qualification is claimed.
 
 Upstream attribution and license notices remain intact. This is an experimental Strata fork, not an endorsed upstream performance claim.
