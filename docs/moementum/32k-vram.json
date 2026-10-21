@@ -1,0 +1,119 @@
+{
+  "scope": "32K_FUNCTIONAL_FIT_AND_RETRIEVAL_NOT_SPEED_COMPARISON",
+  "frozen_manifest_sha256": "7d72e1961de437d7c127f0498557268f348c50e05ad50562a65e7afde54b9a1a",
+  "candidate_revision": "b91d795466e6242474bee4423a5e788525c4fc22",
+  "functional_context_fit_pass": true,
+  "configured_context": 32768,
+  "max_new": 128,
+  "short_smoke_pass": true,
+  "long_retrieval_pass": true,
+  "long_natural_answer": true,
+  "timeouts": false,
+  "OOM": false,
+  "fallback_1p5_attempted": false,
+  "attempted_expert_budget_GiB": 2,
+  "actual_resident_expert_slots_per_layer": 0,
+  "actual_routed_GPU_entries": 0,
+  "actual_routed_CPU_entries": 9784640,
+  "actual_routed_total_entries": 9784640,
+  "expected_total_entries": 9784640,
+  "slot_replacements": 0,
+  "requested_cpu_workers": 5,
+  "reported_CPU_threads_including_host": 6,
+  "actual_profile_warning": "Upstream free-VRAM clamp yields zero expert slots with full 1.59GiB staging. All <=128-row expert batches run on CPU, not prior resident GPU expert path. GPU still handles attention/dense/recurrent operations. Five workers plus participating host thread are logged as six CPU threads.",
+  "frozen_controller_overall_pass": false,
+  "frozen_validation_issue": "Frozen inherited counter gate required GPU>0 and slot count>0. Actual upstream topology is valid zero slots; gate rejected after both requests completed and engine EOF/exit checks. Frozen files/run were not changed. Independent post-run exact protocol replay and total-branch-count checks pass; original controller failure is retained, not waived or rewritten.",
+  "independent_exact_protocol_replay_pass": true,
+  "independent_branch_total_pass": true,
+  "profile_differs_from_3GiB_calibrated": true,
+  "no_speedup_claim": true,
+  "repeatability_tested": false,
+  "absolute_Q4_FP_gate": "FAIL (inherited synthetic fixture, separate from this execution)",
+  "startup": {
+    "ready_observed_seconds": 6.956429707002826,
+    "scope": "process launch through READY; cold engine lifetime, OS page cache uncontrolled"
+  },
+  "memory": {
+    "scope": "GPU device-wide used MiB; all owned engine group RSS plus guest controller RSS; observed samples not true peak",
+    "not_true_peak": true,
+    "RSS_nominal_seconds": 1,
+    "GPU_nominal_seconds": 2,
+    "RSS_actual_intervals": {
+      "count": 346,
+      "min_seconds": 1.0000476789427921,
+      "median_seconds": 1.0001012419816107,
+      "max_seconds": 1.005881445016712
+    },
+    "GPU_actual_intervals": {
+      "count": 173,
+      "min_seconds": 2.0001395989675075,
+      "median_seconds": 2.0020269365631975,
+      "max_seconds": 2.0060101290000603
+    },
+    "observed_max_GPU_device_used_MiB": 5777,
+    "GPU_total_MiB": 6144,
+    "observed_max_owned_RSS_sum_KiB": 25055168,
+    "minimum_MemAvailable_KiB": 18562716,
+    "first_monotonic": 531062.541787311,
+    "last_monotonic": 531407.883304067,
+    "sampling_errors": [],
+    "peak_RSS_includes_mapped_model_and_pinned_expert_arena": true
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3050",
+    "vram_mib": 6144,
+    "cpu": "Intel Core i7-8700 (guest reported)",
+    "guest_vcpus": 6,
+    "guest_ram_gib": 32
+  },
+  "model": {
+    "name": "Qwen3.8-35B-A3B-Distill IQ2_M",
+    "bytes": 12558245760,
+    "sha256": "9c095175f7af0c4acc18e552f0dd7ac8180d81f9ac4bf38d62a03c76a0d6e084"
+  },
+  "binary_sha256": "fb0df4dcd2dc586a48a55e45bf8a0a55d833e827543f474769ad26007f640079",
+  "requests": [
+    {
+      "prompt": "short_smoke",
+      "generated": 10,
+      "prompt_read": 73,
+      "reused": 0,
+      "finish": "stop",
+      "prompt_ms": 812.0,
+      "decode_ms": 311.6,
+      "decode_transitions": 9,
+      "drafts_accepted": 0,
+      "drafts_offered": 0,
+      "fullwall_ms": 1127.5715329684317,
+      "prefill_chunk_count": 1,
+      "prefill_tps": 89.90147783251231,
+      "decode_transitions_per_second": 28.88318356867779,
+      "input_ids_sha256": "fa85c366837eaf5b14f9f0b3dbaf4549d2474cef9f05c91a958c3b75c2025582",
+      "generated_ids_sha256": "cb8ee772dc131fdb25df215d3f1ffa7371942af8a770fbb9951ffacdd30261af"
+    },
+    {
+      "prompt": "near32k_retrieval",
+      "generated": 36,
+      "prompt_read": 30460,
+      "reused": 0,
+      "finish": "stop",
+      "prompt_ms": 331620.8,
+      "decode_ms": 3965.8,
+      "decode_transitions": 35,
+      "drafts_accepted": 0,
+      "drafts_offered": 0,
+      "fullwall_ms": 335615.1720630005,
+      "prefill_chunk_count": 238,
+      "prefill_tps": 91.8518983127717,
+      "decode_transitions_per_second": 8.82545766301881,
+      "input_ids_sha256": "b3b14f318301762badebc498e0526bc152b0be258b92673325297274bd30a19e",
+      "generated_ids_sha256": "923a31286391fd29ee9d6f60b7a920b85b67877923ff07ebe16ef187b5cf8135"
+    }
+  ],
+  "test_oracle": {
+    "begin": "amber-falcon",
+    "middle": "cobalt-willow",
+    "end": "silver-otter",
+    "retrieved_all_three": true
+  }
+}

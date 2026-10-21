@@ -1,0 +1,27 @@
+{
+  "exe": "/absolute/path/to/MoEmentum/build-moementum/strata-q36",
+  "cwd": "/absolute/path/to/MoEmentum",
+  "tokenizer": "/absolute/path/to/MoEmentum/local-pack/tokenizer",
+  "model_name": "moementum-32k-vram-experimental",
+  "args": [
+    "--native",
+    "/absolute/path/to/Qwen3.8-35B-A3B-IQ2_M.gguf",
+    "--max-context",
+    "32768",
+    "--chunk",
+    "128",
+    "--expert-vram",
+    "2",
+    "--cpu-threads",
+    "5",
+    "--hybrid-rows",
+    "128",
+    "--mtp",
+    "0",
+    "--no-warmup"
+  ],
+  "env": {
+    "STRATA_MMQ_KQ": "1",
+    "STRATA_MMQ_Q4_K_QSUM": "0"
+  }
+}

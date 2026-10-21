@@ -1,3 +1,5 @@
+> **`exp-32k-vram` experiment:** 32,768-cell context configured; a real 30,460-token prompt completed with 3/3 retrieval markers correct. Context remains in VRAM; the tested profile ended up with all routed experts on CPU. [Results, memory/TPS, limitations and launch configuration](docs/EXPERIMENT_32K_VRAM.md). This is not the default or a production release.
+
 <p align="center">
   <img src="docs/media/moementum-hero.svg" width="900" alt="MoEmentum — give your experts some momentum. Experimental low-VRAM MoE inference, built on Strata.">
 </p>
