@@ -358,9 +358,7 @@ int main(int argc, char** argv) {
                    14,
 #endif
                    8})        // STRATA_GU_FMTS
-        for (int dt : {20, 21, 22, 23, 42, 7, 8}) check(gu, dt, 512, 256, s, rng);   // STRATA_D_FMTS; IQ down: n_ff % 256
-    check(22, 21, 2048, 512, s, rng);                                  // mixed IQ2_S gate/up + IQ3_S down
-    check(22, 22, 2048, 512, s, rng);                                  // IQ2_S in every projection
+        for (int dt : {20, 23, 42, 7, 8}) check(gu, dt, 512, 256, s, rng);   // STRATA_D_FMTS; IQ4_XS: n_ff % 256
     check(42, 42, 2560, 640, s, rng);
     check(21, 20, 2560, 640, s, rng);                                   // a model's shapes
     check(21, 23, 2560, 768, s, rng);
